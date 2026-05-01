@@ -1,343 +1,295 @@
 <template>
   <div class="app-shell">
-    <!-- Sidebar -->
     <aside class="sidebar">
+      <!-- Logo -->
       <div class="logo-block">
-        <span class="logo-arabic">خ</span>
+        <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
+          <rect width="40" height="40" fill="var(--accent)" />
+          <text x="20" y="27" text-anchor="middle" font-family="Noto Sans Arabic" font-size="18" font-weight="700" fill="#000">خ</text>
+        </svg>
         <div class="logo-text">
-          <span class="brand-name">Khaberni</span>
-          <span class="brand-tagline">خبرني</span>
+          <span class="brand-name">khaberni</span>
+          <span class="brand-arabic">خبرني</span>
         </div>
       </div>
 
+      <!-- Nav -->
       <nav class="sidebar-nav">
-        <router-link to="/" class="nav-link" active-class="active" exact-active-class="active">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-          <span>Dashboard</span>
-        </router-link>
-        <router-link to="/intelligence" class="nav-link" active-class="active">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <span>Intelligence</span>
+        <router-link to="/" class="nav-link" exact-active-class="active">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="3" width="12" height="1.5" fill="currentColor"/>
+            <rect x="2" y="7" width="8" height="1.5" fill="currentColor"/>
+            <rect x="2" y="11" width="10" height="1.5" fill="currentColor"/>
+          </svg>
+          <span>{{ t.nav_news }}</span>
         </router-link>
         <router-link to="/sources" class="nav-link" active-class="active">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-          <span>Sources</span>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M8 3c-2 0-3 2.5-3 5s1 5 3 5" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M8 3c2 0 3 2.5 3 5s-1 5-3 5" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M3 8h10" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+          <span>{{ t.nav_sources }}</span>
+        </router-link>
+        <router-link to="/strategy" class="nav-link" active-class="active">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M2 14l4-4 3 2 5-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/>
+            <circle cx="14" cy="4" r="1.5" fill="currentColor"/>
+          </svg>
+          <span>{{ t.nav_strategy }}</span>
         </router-link>
         <router-link to="/settings" class="nav-link" active-class="active">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          <span>Settings</span>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M8 2v1M8 13v1M2 8h1M13 8h1M3.5 3.5l.7.7M11.8 11.8l.7.7M3.5 12.5l.7-.7M11.8 4.2l.7-.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="square"/>
+          </svg>
+          <span>{{ t.nav_settings }}</span>
         </router-link>
       </nav>
 
-      <div class="sidebar-footer">
-        <div class="user-badge">
-          <div class="user-avatar">SA</div>
-          <div class="user-meta">
-            <span class="user-name">Son of Anton</span>
-            <span class="user-role">Lead Analyst</span>
-          </div>
+      <!-- Language switcher -->
+      <div class="lang-block">
+        <div class="lang-label">LANGUAGE</div>
+        <div class="lang-btns">
+          <button
+            v-for="l in ['en','fr','ar']"
+            :key="l"
+            class="lang-btn"
+            :class="{ active: lang === l }"
+            @click="setLang(l)"
+          >{{ l.toUpperCase() }}</button>
         </div>
+      </div>
+
+      <!-- Agency footer -->
+      <div class="sidebar-footer">
+        <div class="agency-name">3SG COMMUNICATIONS</div>
+        <div class="agency-plan">ENTERPRISE · PLAN PRO</div>
       </div>
     </aside>
 
-    <!-- Main Content -->
-    <div class="main-area">
-      <!-- Top Bar -->
-      <header class="topbar">
-        <div class="search-box">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" placeholder="Search intelligence feeds..." class="search-input" />
-        </div>
-        <button class="btn-primary" @click="$router.push('/')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          New Brief
-        </button>
-      </header>
-
-      <!-- Router View with transition -->
+    <main class="main-area">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
-          <component :is="Component" />
+          <component :is="Component" :t="t" :lang="lang" :set-lang="setLang" />
         </transition>
       </router-view>
-    </div>
+    </main>
   </div>
 </template>
 
 <script setup>
-import { useTheme } from '@/composables/useTheme.js';
-// Initialize theme on app load — restores from localStorage
-useTheme();
+import { ref, provide } from 'vue';
+
+const TRANSLATIONS = {
+  en: {
+    nav_news: 'News Feed', nav_sources: 'Sources', nav_strategy: 'Strategy', nav_settings: 'Settings',
+    update: 'Update', updating: 'Updating...', headlines: 'Top Headlines',
+    all: 'All', tech: 'Tech', sport: 'Sport', social: 'Social', weather: 'Weather', politics: 'Politics', economy: 'Economy',
+    urgency: 'Urgency', relevance: 'Relevance',
+    run_agent: 'Run Analysis',
+    sources_title: 'Manage Sources', add_source: 'Add Source',
+    strategy_title: 'Strategy Workshop', drop_ppt: 'Drop your PowerPoint here', improve_btn: 'Improve My Strategy',
+    settings_title: 'Settings',
+  },
+  fr: {
+    nav_news: 'Actualités', nav_sources: 'Sources', nav_strategy: 'Stratégie', nav_settings: 'Paramètres',
+    update: 'Actualiser', updating: 'Actualisation…', headlines: 'À la une',
+    all: 'Tout', tech: 'Tech', sport: 'Sport', social: 'Social', weather: 'Météo', politics: 'Politique', economy: 'Économie',
+    urgency: 'Urgence', relevance: 'Pertinence',
+    run_agent: "Lancer l'Analyse",
+    sources_title: 'Gérer les Sources', add_source: 'Ajouter une Source',
+    strategy_title: 'Atelier Stratégie', drop_ppt: 'Déposez votre PowerPoint ici', improve_btn: 'Améliorer Ma Stratégie',
+    settings_title: 'Paramètres',
+  },
+  ar: {
+    nav_news: 'موجز الأخبار', nav_sources: 'المصادر', nav_strategy: 'الاستراتيجية', nav_settings: 'الإعدادات',
+    update: 'تحديث', updating: 'جارٍ التحديث…', headlines: 'أبرز العناوين',
+    all: 'الكل', tech: 'تقنية', sport: 'رياضة', social: 'اجتماعي', weather: 'طقس', politics: 'سياسة', economy: 'اقتصاد',
+    urgency: 'الإلحاح', relevance: 'الصلة',
+    run_agent: 'تشغيل التحليل',
+    sources_title: 'إدارة المصادر', add_source: 'إضافة مصدر',
+    strategy_title: 'ورشة الاستراتيجية', drop_ppt: 'أسقط ملف PowerPoint هنا', improve_btn: 'تحسين استراتيجيتي',
+    settings_title: 'الإعدادات',
+  },
+};
+
+const lang = ref('en');
+const t = ref(TRANSLATIONS['en']);
+
+function setLang(l) {
+  lang.value = l;
+  t.value = TRANSLATIONS[l] || TRANSLATIONS.en;
+  document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr';
+  document.documentElement.lang = l;
+}
+
+provide('lang', lang);
+provide('t', t);
+provide('setLang', setLang);
 </script>
 
 <style>
-/* ═══ App Shell ═══ */
 .app-shell {
   display: flex;
-  min-height: 100vh;
-  background: var(--bg-root);
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--bg);
 }
 
-/* ═══ Sidebar ═══ */
+/* ── Sidebar ── */
 .sidebar {
-  width: var(--sidebar-width);
-  background: var(--bg-sidebar);
-  border-right: 1px solid var(--border-subtle);
+  width: 220px;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100vh;
-  z-index: 20;
-  padding: 0;
+  flex-shrink: 0;
+  height: 100%;
 }
 
 .logo-block {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 20px 20px 24px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.logo-arabic {
-  width: 42px;
-  height: 42px;
-  background: var(--accent-gold);
-  color: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Noto Naskh Arabic', serif;
-  font-size: 22px;
-  font-weight: 700;
-  border-radius: 6px;
-  flex-shrink: 0;
+  gap: 10px;
+  padding: 28px 20px 24px;
+  border-bottom: 1px solid var(--border);
 }
 
 .logo-text {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  line-height: 1.2;
+  line-height: 1;
+  gap: 3px;
 }
 
 .brand-name {
-  font-family: 'Outfit', sans-serif;
-  font-weight: 700;
-  font-size: 16px;
-  color: var(--text-primary);
-  letter-spacing: 0.02em;
+  font-family: var(--ff-head);
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  color: var(--text);
 }
 
-.brand-tagline {
-  font-family: 'Noto Naskh Arabic', serif;
+.brand-arabic {
+  font-family: var(--ff-arabic);
+  font-weight: 600;
   font-size: 11px;
-  color: var(--text-secondary);
+  color: var(--accent);
   direction: rtl;
 }
 
 /* Nav */
 .sidebar-nav {
   flex: 1;
-  padding: 16px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  padding: 12px 0;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  color: var(--text-secondary);
+  gap: 12px;
+  width: 100%;
+  padding: 11px 20px;
+  background: transparent;
+  border-left: 2px solid transparent;
+  color: var(--text2);
+  font-family: var(--ff-body);
+  font-size: 13px;
+  font-weight: 400;
   text-decoration: none;
-  border-radius: 6px;
-  font-size: 13.5px;
-  font-weight: 500;
-  transition: all 0.15s ease;
+  transition: all 0.15s;
 }
 
 .nav-link:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  color: var(--text);
+  background: var(--bg2);
 }
 
 .nav-link.active {
-  background: var(--accent-gold-dim);
-  color: var(--accent-gold);
-}
-
-.nav-link svg {
-  flex-shrink: 0;
-  opacity: 0.7;
+  background: var(--bg2);
+  border-left-color: var(--accent);
+  color: var(--text);
+  font-weight: 500;
 }
 
 .nav-link.active svg {
-  opacity: 1;
+  color: var(--accent);
 }
 
-/* Sidebar Footer */
-.sidebar-footer {
-  padding: 16px;
-  border-top: 1px solid var(--border-subtle);
+/* Language */
+.lang-block {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
 }
 
-.user-badge {
+.lang-label {
+  font-family: var(--ff-mono);
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+.lang-btns {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  gap: 4px;
 }
 
-.user-avatar {
-  width: 34px;
-  height: 34px;
-  background: linear-gradient(135deg, var(--accent-gold), #d4a040);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 12px;
+.lang-btn {
+  flex: 1;
+  padding: 5px 0;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.lang-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
   color: #000;
-  flex-shrink: 0;
 }
 
-.user-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+/* Footer */
+.sidebar-footer {
+  padding: 12px 20px 20px;
+  border-top: 1px solid var(--border);
 }
 
-.user-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
+.agency-name {
+  font-family: var(--ff-mono);
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 0.08em;
 }
 
-.user-role {
-  font-size: 11px;
-  color: var(--text-secondary);
+.agency-plan {
+  font-family: var(--ff-mono);
+  font-size: 9px;
+  color: var(--text3);
+  margin-top: 2px;
 }
 
-/* ═══ Main Area ═══ */
+/* Main */
 .main-area {
   flex: 1;
-  margin-left: var(--sidebar-width);
+  min-width: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
 }
 
-/* ═══ Top Bar ═══ */
-.topbar {
-  height: var(--topbar-height);
-  background: var(--bg-topbar);
-  border-bottom: 1px solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
+/* Page transitions */
+.page-enter-active { transition: opacity 0.15s ease-out; }
+.page-leave-active { transition: opacity 0.1s ease-in; }
+.page-enter-from, .page-leave-to { opacity: 0; }
 
-.search-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  padding: 0 12px;
-  width: 320px;
-  transition: border-color 0.15s ease;
-}
-
-.search-box:focus-within {
-  border-color: var(--accent-gold-muted);
-}
-
-.search-box svg {
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.search-input {
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--text-primary);
-  font-size: 13px;
-  padding: 8px 0;
-  width: 100%;
-  font-family: inherit;
-}
-
-.search-input::placeholder {
-  color: var(--text-muted);
-}
-
-.btn-primary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--accent-gold);
-  color: #000;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s ease;
-}
-
-.btn-primary:hover {
-  background: var(--accent-gold-hover);
-}
-
-.btn-primary svg {
-  flex-shrink: 0;
-}
-
-/* ═══ Page Transitions ═══ */
-.page-enter-active { transition: all 0.2s ease-out; }
-.page-leave-active { transition: all 0.15s ease-in; }
-.page-enter-from { opacity: 0; transform: translateY(6px); }
-.page-leave-to { opacity: 0; transform: translateY(-4px); }
-
-/* ═══ Responsive ═══ */
-@media (max-width: 1024px) {
-  .sidebar {
-    width: 64px;
-    overflow: hidden;
-  }
-  .logo-text,
-  .nav-link span,
-  .user-meta {
-    display: none;
-  }
-  .logo-block {
-    justify-content: center;
-    padding: 16px 8px 20px;
-  }
-  .sidebar-nav {
-    padding: 16px 8px;
-  }
-  .nav-link {
-    justify-content: center;
-    padding: 10px;
-  }
-  .main-area {
-    margin-left: 64px;
-  }
-  .search-box {
-    width: 200px;
-  }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

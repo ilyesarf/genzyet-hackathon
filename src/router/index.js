@@ -7,7 +7,7 @@ import SettingsPage from '@/components/SettingsPage.vue';
 
 const routes = [
   { path: '/', name: 'dashboard', component: NewsDashboard },
-  { path: '/intelligence', name: 'intelligence', component: IntelligencePage },
+  { path: '/strategy', name: 'strategy', component: IntelligencePage },
   { path: '/sources', name: 'sources', component: SourcesPage },
   { path: '/settings', name: 'settings', component: SettingsPage },
 ];
