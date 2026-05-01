@@ -17,6 +17,13 @@
       <nav class="sidebar-nav">
         <router-link to="/" class="nav-link" exact-active-class="active">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+            <path d="M2 14l4-4 3 2 5-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/>
+            <circle cx="14" cy="4" r="1.5" fill="currentColor"/>
+          </svg>
+          <span>{{ t.nav_strategy }}</span>
+        </router-link>
+        <router-link to="/news" class="nav-link" active-class="active">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
             <rect x="2" y="3" width="12" height="1.5" fill="currentColor"/>
             <rect x="2" y="7" width="8" height="1.5" fill="currentColor"/>
             <rect x="2" y="11" width="10" height="1.5" fill="currentColor"/>
@@ -31,13 +38,6 @@
             <path d="M3 8h10" stroke="currentColor" stroke-width="1.2"/>
           </svg>
           <span>{{ t.nav_sources }}</span>
-        </router-link>
-        <router-link to="/strategy" class="nav-link" active-class="active">
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-            <path d="M2 14l4-4 3 2 5-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/>
-            <circle cx="14" cy="4" r="1.5" fill="currentColor"/>
-          </svg>
-          <span>{{ t.nav_strategy }}</span>
         </router-link>
         <router-link to="/settings" class="nav-link" active-class="active">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none">

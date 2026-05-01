@@ -6,8 +6,8 @@ import SourcesPage from '@/components/SourcesPage.vue';
 import SettingsPage from '@/components/SettingsPage.vue';
 
 const routes = [
-  { path: '/', name: 'dashboard', component: NewsDashboard },
-  { path: '/strategy', name: 'strategy', component: IntelligencePage },
+  { path: '/', name: 'strategy', component: IntelligencePage },
+  { path: '/news', name: 'dashboard', component: NewsDashboard },
   { path: '/sources', name: 'sources', component: SourcesPage },
   { path: '/settings', name: 'settings', component: SettingsPage },
 ];
