@@ -1,0 +1,73 @@
+:root {
+  /* Khaberni Design System */
+  --bg-root: #080808;
+  --bg-sidebar: #111111;
+  --bg-topbar: #111111;
+  --bg-surface: #111111;
+  --bg-input: #1e1e1e;
+  --bg-hover: #1a1a1a;
+
+  --border-subtle: #222222;
+  --border-muted: #2a2a2a;
+
+  --text-primary: #e8e8e8;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+
+  --accent-gold: #c98a2a;
+  --accent-gold-hover: #d99a3a;
+  --accent-gold-dim: rgba(201, 138, 42, 0.15);
+  --accent-gold-muted: rgba(201, 138, 42, 0.6);
+
+  --urgency-high: #e54545;
+  --urgency-medium: #c98a2a;
+  --urgency-low: #3a8a5c;
+
+  --sidebar-width: 240px;
+  --topbar-height: 56px;
+
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: dark;
+  color: var(--text-primary);
+  background-color: var(--bg-root);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  min-width: 320px;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--accent-gold-dim);
+  color: var(--accent-gold);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
