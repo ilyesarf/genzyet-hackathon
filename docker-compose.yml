@@ -23,6 +23,20 @@ services:
       - scraper
     restart: unless-stopped
 
+  # ── COM Strategist Agent (Straton v1.2) ───────────────────────────────────
+  strategist:
+    build: ./com_strategist
+    container_name: khaberni-strategist
+    ports:
+      - "8002:8002"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ANALYST_API_URL=http://analyst:8001
+    depends_on:
+      - analyst
+    restart: unless-stopped
+
   # ── Frontend (nginx + built Vue app) ──────────────────────────────────────
   frontend:
     build: .
@@ -32,6 +46,7 @@ services:
     depends_on:
       - scraper
       - analyst
+      - strategist
     restart: unless-stopped
 
 volumes:
