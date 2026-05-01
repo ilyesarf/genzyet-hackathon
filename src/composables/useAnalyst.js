@@ -1,60 +1,74 @@
 import { ref, onMounted } from 'vue';
 
+const ANALYST_BASE = '/api/analyst';
+
 export function useAnalyst() {
   const data = ref([]);
+  const tldr = ref([]);
   const loading = ref(true);
   const error = ref(null);
 
-  const fetchIntelligence = async () => {
+  const fetchIntelligence = async (window = 24, category = null) => {
     loading.value = true;
     error.value = null;
     
     try {
-      // Simulating network delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      data.value = [
-        {
-          title: "Neural Engine Breakthrough: Apple's M4 Chip benchmarks leaked",
-          source: "TechPulse",
-          category: "Hardware",
-          urgency_score: 85,
-          timestamp: new Date().toISOString(),
-          summary: "Newly leaked benchmarks indicate a 40% jump in NPU performance, potentially reshaping the competitive landscape for edge AI marketing campaigns."
-        },
-        {
-          title: "European Union finalizes landmark AI Act regulations",
-          source: "Reuters",
-          category: "Regulatory",
-          urgency_score: 92,
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          summary: "The final text introduces strict transparency requirements for generative models. Marketing firms must audit their automated content pipelines immediately."
-        },
-        {
-          title: "Consumer sentiment shifts toward 'Human-Made' branding",
-          source: "MarketWatch",
-          category: "Consumer Trends",
-          urgency_score: 45,
-          timestamp: new Date(Date.now() - 86400000).toISOString(),
-          summary: "Recent survey data suggests a growing premium on human-verified content. Brands should pivot their messaging to emphasize creative authenticity."
-        },
-        {
-          title: "OpenAI announces GPT-5 developer preview",
-          source: "The Verge",
-          category: "AI Software",
-          urgency_score: 98,
-          timestamp: new Date(Date.now() - 1800000).toISOString(),
-          summary: "The next generation of LLMs is here. Early access shows significant improvements in complex reasoning and multi-modal integration for automated analysts."
-        },
-        {
-          title: "Cybersecurity Alert: New phishing wave targets marketing VPs",
-          source: "Securly",
-          category: "Security",
-          urgency_score: 72,
-          timestamp: new Date(Date.now() - 7200000).toISOString(),
-          summary: "Highly targeted campaigns are using deepfake audio to bypass traditional auth. Immediate staff training on verification protocols is required."
-        }
-      ];
+      const params = new URLSearchParams({ window: String(window) });
+      if (category && category !== 'all') params.append('category', category);
+
+      const res = await fetch(`${ANALYST_BASE}/analyze?${params}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `Analysis failed (${res.status})`);
+      }
+
+      const json = await res.json();
+      const result = json.data || {};
+
+      data.value = (result.items || []).map(item => ({
+        headline: item.headline,
+        source: item.source,
+        date: item.date,
+        why_it_matters: item.why_it_matters,
+        relevance_score: item.relevance_score,
+      }));
+
+      tldr.value = result.tldr || [];
+    } catch (err) {
+      error.value = err.message;
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  const refreshIntelligence = async (window = 24, category = null) => {
+    loading.value = true;
+    error.value = null;
+
+    try {
+      const params = new URLSearchParams({ window: String(window) });
+      if (category && category !== 'all') params.append('category', category);
+
+      const res = await fetch(`${ANALYST_BASE}/analyze/refresh?${params}`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `Refresh failed (${res.status})`);
+      }
+
+      const json = await res.json();
+      const result = json.data || {};
+
+      data.value = (result.items || []).map(item => ({
+        headline: item.headline,
+        source: item.source,
+        date: item.date,
+        why_it_matters: item.why_it_matters,
+        relevance_score: item.relevance_score,
+      }));
+
+      tldr.value = result.tldr || [];
     } catch (err) {
       error.value = err.message;
     } finally {
@@ -68,8 +82,10 @@ export function useAnalyst() {
 
   return {
     data,
+    tldr,
     loading,
     error,
-    refresh: fetchIntelligence
+    fetch: fetchIntelligence,
+    refresh: refreshIntelligence,
   };
 }

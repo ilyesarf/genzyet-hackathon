@@ -11,6 +11,7 @@ import logging
 from typing import Optional
 
 from fastapi import FastAPI, Query, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from agent import analyze, refresh_and_analyze
@@ -29,6 +30,14 @@ app = FastAPI(
         "adds LLM-powered analysis, and exposes structured results."
     ),
     version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

@@ -107,7 +107,7 @@
                 </div>
                 <div class="row-title">{{ item.title }}</div>
                 <div v-if="expandedId === item.id" class="row-expanded">
-                  <p class="row-desc">This article has been flagged as relevant to your current communication strategy. The data analyst agent identified key themes: market positioning, stakeholder impact, and timeline sensitivity. Consider reviewing your messaging around this topic within the next 4–6 hours for maximum relevance.</p>
+                  <p class="row-desc">{{ item.body ? item.body.slice(0, 300) : 'No body content available for this article.' }}</p>
                   <div class="score-row">
                     <div class="score-item">
                       <div class="score-label">{{ t.urgency }}</div>
@@ -230,9 +230,12 @@
 </template>
 
 <script setup>
-import { ref, computed, inject, onMounted, onUnmounted } from 'vue';
+import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue';
 
 const t = inject('t');
+
+const SCRAPER_BASE = '/api/scraper';
+const ANALYST_BASE = '/api/analyst';
 
 const CAT_COLORS = {
   tech: 'var(--blue)',
@@ -243,46 +246,33 @@ const CAT_COLORS = {
   weather: 'oklch(65% 0.12 200)',
 };
 
-const NEWS_DATA = [
-  { id:1, cat:'tech', urgency:92, relevance:88, title:'Meta launches AI-powered ad personalisation suite for agencies', source:'TechCrunch', time:'2h ago', tag:'BREAKING' },
-  { id:2, cat:'economy', urgency:85, relevance:91, title:'IMF revises global growth forecast downward amid trade tensions', source:'Reuters', time:'3h ago', tag:'ALERT' },
-  { id:3, cat:'politics', urgency:78, relevance:72, title:'European Parliament votes on new digital markets regulation', source:'Le Monde', time:'4h ago', tag:null },
-  { id:4, cat:'social', urgency:65, relevance:80, title:'Gen Z abandons traditional news for short-video summaries', source:'Bloomberg', time:'5h ago', tag:null },
-  { id:5, cat:'tech', urgency:88, relevance:94, title:'OpenAI announces enterprise API with custom model fine-tuning', source:'The Verge', time:'6h ago', tag:'HOT' },
-  { id:6, cat:'sport', urgency:55, relevance:60, title:'Champions League: PSG vs Bayern preview — tactical breakdown', source:"L'Équipe", time:'7h ago', tag:null },
-  { id:7, cat:'economy', urgency:74, relevance:76, title:'Tunisian dinar stabilises as central bank raises interest rates', source:'TAP', time:'8h ago', tag:null },
-  { id:8, cat:'tech', urgency:70, relevance:85, title:'Anthropic releases Claude 4.5 with extended context window', source:'Wired', time:'9h ago', tag:null },
-  { id:9, cat:'social', urgency:60, relevance:70, title:'Ramadan social media trends: brands missing key moments', source:'Social Media Today', time:'10h ago', tag:null },
-  { id:10, cat:'politics', urgency:82, relevance:68, title:'Tunisia to host MENA digital governance summit next month', source:'TAP', time:'11h ago', tag:null },
-];
-
-const RESULT_CLUSTERS = [
-  { theme:'AI & Tech', count:4, urgency:88, articles:['Meta AI ad suite','OpenAI enterprise API','Claude 4.5 release','EU digital markets vote'] },
-  { theme:'Economy', count:2, urgency:80, articles:['IMF growth revision','Tunisian dinar stabilises'] },
-  { theme:'Social', count:2, urgency:63, articles:['Gen Z news habits','Ramadan brand moments'] },
-  { theme:'Politics', count:2, urgency:80, articles:['EU Parliament vote','MENA governance summit'] },
-];
-const RESULT_RECS = [
-  'Prioritise AI-themed content in client comms this week — tech narrative dominates.',
-  'Prepare reactive messaging for economic uncertainty — IMF data may fuel client concerns.',
-  'Review social media distribution for younger segments; video-first is critical.',
-];
-const RESULT_SUMMARY = 'AI infrastructure acceleration dominates the past 24h, with Meta and OpenAI making key enterprise announcements. Economic signals are mixed. Social listening reveals a generational shift in news consumption that directly impacts PR distribution strategy.';
-
-const agentSteps = ['Triggering scraper…','Fetching 9 active sources…','Reading 147 articles…','Computing urgency scores…','Building semantic clusters…','Synthesising summary…'];
-
-// State
+// ── State ──────────────────────────────────────────────────────────────────
 const timeWindow = ref('24');
 const category = ref('all');
 const updating = ref(false);
-const lastUpdate = ref('Today, 09:14');
+const lastUpdate = ref('—');
 const expandedId = ref(null);
 const newsCollapsed = ref(false);
 const analysisCollapsed = ref(false);
 const phase = ref('idle');
 const stepIdx = ref(0);
 
-// Split pane
+// Live data
+const articles = ref([]);
+const analysisItems = ref([]);
+const analysisTldr = ref([]);
+const analysisSummary = ref('');
+const analysisError = ref(null);
+
+const agentSteps = [
+  'Connecting to scraper API…',
+  'Fetching articles…',
+  'Sending to LLM analyst…',
+  'Parsing structured results…',
+  'Rendering output…',
+];
+
+// ── Split pane ─────────────────────────────────────────────────────────────
 const _initSplit = (() => {
   try { const v = localStorage.getItem('khaberni_split'); return v ? parseFloat(v) : 55; } catch { return 55; }
 })();
@@ -301,8 +291,7 @@ const categories = computed(() => [
 ]);
 
 const sortedNews = computed(() => {
-  const filtered = NEWS_DATA.filter(n => category.value === 'all' || n.cat === category.value);
-  return [...filtered].sort((a, b) => b.urgency - a.urgency);
+  return [...articles.value].sort((a, b) => (b.urgency || 0) - (a.urgency || 0));
 });
 
 const bothVisible = computed(() => !newsCollapsed.value && !analysisCollapsed.value);
@@ -317,6 +306,91 @@ const analysisWidth = computed(() => {
   return (100 - splitSize.value) + '%';
 });
 
+// ── Derived analysis display data ──────────────────────────────────────────
+const RESULT_SUMMARY = computed(() => {
+  if (analysisTldr.value.length > 0) {
+    return analysisTldr.value.join(' ');
+  }
+  return analysisSummary.value || 'No analysis available yet. Click "Run Analysis" to generate an intelligence brief.';
+});
+
+const RESULT_CLUSTERS = computed(() => {
+  // Group analysis items by source or cluster them by relevance
+  const items = analysisItems.value;
+  if (!items.length) return [];
+
+  const highItems = items.filter(i => i.relevance_score?.toLowerCase() === 'high');
+  const medItems = items.filter(i => i.relevance_score?.toLowerCase() === 'medium');
+  const lowItems = items.filter(i => i.relevance_score?.toLowerCase() === 'low');
+  const other = items.filter(i => !['high','medium','low'].includes(i.relevance_score?.toLowerCase()));
+
+  const clusters = [];
+  if (highItems.length) clusters.push({ theme: 'High Priority', urgency: 90, articles: highItems.map(i => i.headline) });
+  if (medItems.length) clusters.push({ theme: 'Medium Priority', urgency: 60, articles: medItems.map(i => i.headline) });
+  if (lowItems.length) clusters.push({ theme: 'Lower Priority', urgency: 30, articles: lowItems.map(i => i.headline) });
+  if (other.length) clusters.push({ theme: 'Other', urgency: 50, articles: other.map(i => i.headline) });
+  return clusters;
+});
+
+const RESULT_RECS = computed(() => {
+  return analysisTldr.value.length > 0
+    ? analysisTldr.value
+    : ['Run the agent to get strategic recommendations.'];
+});
+
+// ── API calls ──────────────────────────────────────────────────────────────
+async function fetchArticles() {
+  try {
+    const params = new URLSearchParams({ window: timeWindow.value });
+    if (category.value && category.value !== 'all') {
+      params.append('category', category.value);
+    }
+    const res = await fetch(`${SCRAPER_BASE}/articles?${params}`);
+    if (!res.ok) throw new Error(`Scraper returned ${res.status}`);
+    const json = await res.json();
+    const raw = json.data || [];
+
+    articles.value = raw.map((a, i) => ({
+      id: i + 1,
+      cat: (a.category || '').toLowerCase(),
+      urgency: 50 + Math.floor(Math.random() * 40), // placeholder until agent scores
+      relevance: 50 + Math.floor(Math.random() * 40),
+      title: a.title || 'Untitled',
+      source: a.source || 'Unknown',
+      time: formatRelativeTime(a.published_at),
+      tag: null,
+      body: a.body || '',
+      url: a.url || '',
+    }));
+
+    const now = new Date();
+    lastUpdate.value = `Today, ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  } catch (err) {
+    console.error('[NewsDashboard] Failed to fetch articles:', err);
+  }
+}
+
+function formatRelativeTime(dateStr) {
+  if (!dateStr) return 'unknown';
+  try {
+    const d = new Date(dateStr);
+    const diffMs = Date.now() - d.getTime();
+    const diffH = Math.floor(diffMs / 3600000);
+    if (diffH < 1) return 'just now';
+    if (diffH < 24) return `${diffH}h ago`;
+    const diffD = Math.floor(diffH / 24);
+    return `${diffD}d ago`;
+  } catch {
+    return dateStr;
+  }
+}
+
+async function triggerScrape() {
+  const res = await fetch(`${SCRAPER_BASE}/scrape`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Scrape failed (${res.status})`);
+}
+
+// ── Handlers ───────────────────────────────────────────────────────────────
 function toggleNews() {
   if (!newsCollapsed.value && analysisCollapsed.value) analysisCollapsed.value = false;
   newsCollapsed.value = !newsCollapsed.value;
@@ -326,25 +400,67 @@ function toggleAnalysis() {
   analysisCollapsed.value = !analysisCollapsed.value;
 }
 
-function handleUpdate() {
+async function handleUpdate() {
   updating.value = true;
-  setTimeout(() => {
+  try {
+    await triggerScrape();
+    await fetchArticles();
+  } catch (err) {
+    console.error('[NewsDashboard] Update failed:', err);
+  } finally {
     updating.value = false;
-    const now = new Date();
-    lastUpdate.value = `Today, ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  }, 2200);
+  }
 }
 
-function runAnalysis() {
-  phase.value = 'running'; stepIdx.value = 0;
+async function runAnalysis() {
+  phase.value = 'running';
+  stepIdx.value = 0;
+  analysisError.value = null;
+
+  // Animate steps while the real API call runs
   let step = 0;
   const iv = setInterval(() => {
     step++;
-    stepIdx.value = Math.min(step - 1, agentSteps.length - 1);
-    if (step >= agentSteps.length) { clearInterval(iv); setTimeout(() => { phase.value = 'done'; }, 300); }
-  }, 600);
+    stepIdx.value = Math.min(step, agentSteps.length - 1);
+  }, 800);
+
+  try {
+    const params = new URLSearchParams({ window: timeWindow.value });
+    if (category.value && category.value !== 'all') {
+      params.append('category', category.value);
+    }
+    const res = await fetch(`${ANALYST_BASE}/analyze?${params}`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || `Agent returned ${res.status}`);
+    }
+    const json = await res.json();
+    const result = json.data || {};
+
+    analysisItems.value = result.items || [];
+    analysisTldr.value = result.tldr || [];
+
+    // Build a summary from the first few items
+    if (analysisItems.value.length > 0) {
+      const topItems = analysisItems.value.slice(0, 3);
+      analysisSummary.value = topItems
+        .map(i => i.why_it_matters)
+        .filter(Boolean)
+        .join(' ');
+    }
+  } catch (err) {
+    analysisError.value = err.message;
+    console.error('[NewsDashboard] Analysis failed:', err);
+  } finally {
+    clearInterval(iv);
+    stepIdx.value = agentSteps.length;
+    setTimeout(() => {
+      phase.value = analysisError.value ? 'idle' : 'done';
+    }, 400);
+  }
 }
 
+// ── Drag to resize ─────────────────────────────────────────────────────────
 function startDrag(e) {
   e.preventDefault();
   dragging = true;
@@ -367,7 +483,21 @@ function stopDrag() {
   window.removeEventListener('mousemove', onDragMove);
   window.removeEventListener('mouseup', stopDrag);
 }
-onUnmounted(() => { window.removeEventListener('mousemove', onDragMove); window.removeEventListener('mouseup', stopDrag); });
+
+// ── Lifecycle ──────────────────────────────────────────────────────────────
+onMounted(() => {
+  fetchArticles();
+});
+
+// Re-fetch when filters change
+watch([timeWindow, category], () => {
+  fetchArticles();
+});
+
+onUnmounted(() => {
+  window.removeEventListener('mousemove', onDragMove);
+  window.removeEventListener('mouseup', stopDrag);
+});
 </script>
 
 <style scoped>

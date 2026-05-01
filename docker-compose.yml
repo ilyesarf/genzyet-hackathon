@@ -1,0 +1,38 @@
+services:
+  # ── Scraper API ───────────────────────────────────────────────────────────
+  scraper:
+    build: ./scraper
+    container_name: khaberni-scraper
+    ports:
+      - "8000:8000"
+    volumes:
+      - scraper-data:/app/data    # persist news.db across restarts
+    restart: unless-stopped
+
+  # ── Data Analyst Agent ────────────────────────────────────────────────────
+  analyst:
+    build: ./analyst_agent
+    container_name: khaberni-analyst
+    ports:
+      - "8001:8001"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SCRAPER_API_URL=http://scraper:8000
+    depends_on:
+      - scraper
+    restart: unless-stopped
+
+  # ── Frontend (nginx + built Vue app) ──────────────────────────────────────
+  frontend:
+    build: .
+    container_name: khaberni-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - scraper
+      - analyst
+    restart: unless-stopped
+
+volumes:
+  scraper-data:

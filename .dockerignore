@@ -1,0 +1,12 @@
+node_modules
+dist
+.venv
+__pycache__
+*.db
+.env
+.git
+.gitignore
+*.md
+data-analyst.md
+analyst_agent/.venv
+scraper/news.db

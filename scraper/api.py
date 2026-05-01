@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import Optional
 import logging
@@ -9,7 +10,32 @@ import db
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+import threading
+from scheduler import start_scheduler
+
 app = FastAPI(title="News Intelligence API", description="API for managing data ingestion layer")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.on_event("startup")
+def on_startup():
+    logger.info("Starting scheduler...")
+    start_scheduler()
+    
+    # Check if DB is empty; if so, trigger a scrape in the background
+    try:
+        articles = db.get_articles(window_hours=100000)
+        if not articles:
+            logger.info("Database is empty. Triggering initial scrape in background...")
+            threading.Thread(target=run_scrape, daemon=True).start()
+    except Exception as e:
+        logger.error(f"Failed to check DB on startup: {e}")
 
 @app.post("/scrape", summary="Trigger a scrape run on-demand")
 def trigger_scrape():

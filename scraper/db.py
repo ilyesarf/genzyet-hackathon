@@ -2,8 +2,9 @@ import sqlite3
 import datetime
 import os
 
-DB_FILE = os.path.join(os.path.dirname(__file__), "news.db")
-
+DB_DIR = os.path.join(os.path.dirname(__file__), "data")
+os.makedirs(DB_DIR, exist_ok=True)
+DB_FILE = os.path.join(DB_DIR, "news.db")
 def get_db():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row

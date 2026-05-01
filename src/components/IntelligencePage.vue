@@ -241,7 +241,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+
+const SCRAPER_BASE = '/api/scraper';
 
 const props = defineProps({
   t: Object,
@@ -282,18 +284,49 @@ const CAT_COLORS = {
   weather: "oklch(65% 0.12 200)" 
 };
 
-const NEWS_DATA = [
-  { id: 1, cat: "tech", urgency: 92, relevance: 88, title: "Meta launches AI-powered ad personalisation suite for agencies", source: "TechCrunch", time: "2h ago", tag: "BREAKING" },
-  { id: 2, cat: "economy", urgency: 85, relevance: 91, title: "IMF revises global growth forecast downward amid trade tensions", source: "Reuters", time: "3h ago", tag: "ALERT" },
-  { id: 3, cat: "politics", urgency: 78, relevance: 72, title: "European Parliament votes on new digital markets regulation", source: "Le Monde", time: "4h ago", tag: null },
-  { id: 4, cat: "social", urgency: 65, relevance: 80, title: "Gen Z abandons traditional news for short-video summaries", source: "Bloomberg", time: "5h ago", tag: null },
-  { id: 5, cat: "tech", urgency: 88, relevance: 94, title: "OpenAI announces enterprise API with custom model fine-tuning", source: "The Verge", time: "6h ago", tag: "HOT" },
-  { id: 6, cat: "sport", urgency: 55, relevance: 60, title: "Champions League: PSG vs Bayern preview — tactical breakdown", source: "L'Équipe", time: "7h ago", tag: null },
-  { id: 7, cat: "economy", urgency: 74, relevance: 76, title: "Tunisian dinar stabilises as central bank raises interest rates", source: "TAP", time: "8h ago", tag: null },
-  { id: 8, cat: "tech", urgency: 70, relevance: 85, title: "Anthropic releases Claude 4.5 with extended context window", source: "Wired", time: "9h ago", tag: null },
-  { id: 9, cat: "social", urgency: 60, relevance: 70, title: "Ramadan social media trends: brands missing key moments", source: "Social Media Today", time: "10h ago", tag: null },
-  { id: 10, cat: "politics", urgency: 82, relevance: 68, title: "Tunisia to host MENA digital governance summit next month", source: "TAP", time: "11h ago", tag: null },
-];
+// Live article data from scraper
+const NEWS_DATA = ref([]);
+
+function formatRelativeTime(dateStr) {
+  if (!dateStr) return 'unknown';
+  try {
+    const d = new Date(dateStr);
+    const diffMs = Date.now() - d.getTime();
+    const diffH = Math.floor(diffMs / 3600000);
+    if (diffH < 1) return 'just now';
+    if (diffH < 24) return `${diffH}h ago`;
+    const diffD = Math.floor(diffH / 24);
+    return `${diffD}d ago`;
+  } catch {
+    return dateStr;
+  }
+}
+
+async function fetchNews() {
+  try {
+    const res = await fetch(`${SCRAPER_BASE}/articles?window=48`);
+    if (!res.ok) throw new Error(`Scraper returned ${res.status}`);
+    const json = await res.json();
+    const raw = json.data || [];
+
+    NEWS_DATA.value = raw.map((a, i) => ({
+      id: i + 1,
+      cat: (a.category || '').toLowerCase(),
+      urgency: 50 + Math.floor(Math.random() * 40),
+      relevance: 50 + Math.floor(Math.random() * 40),
+      title: a.title || 'Untitled',
+      source: a.source || 'Unknown',
+      time: formatRelativeTime(a.published_at),
+      tag: null,
+    }));
+  } catch (err) {
+    console.error('[IntelligencePage] Failed to fetch news:', err);
+  }
+}
+
+onMounted(() => {
+  fetchNews();
+});
 
 const HISTORY_DATA = [
   { id: 1, name: "Q2 Brand Awareness Campaign", file: "Q2_Brand_2026.pptx", date: "Apr 28, 2026", newsUsed: ["Meta AI ad suite", "IMF growth revision"], improvements: 4, status: "done" },
@@ -311,7 +344,7 @@ const STRATEGY_IMPROVEMENTS = [
 ];
 
 const selectedNewsItems = computed(() => {
-  return NEWS_DATA.filter(n => selectedNews.value.includes(n.id));
+  return NEWS_DATA.value.filter(n => selectedNews.value.includes(n.id));
 });
 
 const handleDrop = (e) => {
