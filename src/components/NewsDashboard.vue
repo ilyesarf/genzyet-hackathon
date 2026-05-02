@@ -218,7 +218,7 @@
           <div v-else-if="phase === 'done'" class="analysis-results">
             <div class="result-card">
               <div class="result-card-label">SUMMARY</div>
-              <p class="result-summary">{{ RESULT_SUMMARY }}</p>
+              <div class="result-summary md-rendered" v-html="renderMarkdown(RESULT_SUMMARY)"></div>
             </div>
 
             <div>
@@ -241,7 +241,7 @@
               <div class="signals">
                 <div v-for="(rec, i) in RESULT_RECS" :key="i" class="signal-item">
                   <span class="signal-arrow">→</span>
-                  <span class="signal-text">{{ rec }}</span>
+                  <div class="signal-text md-rendered" v-html="renderMarkdown(rec)"></div>
                 </div>
               </div>
             </div>
@@ -256,6 +256,7 @@
 
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { marked } from 'marked';
 import { useAnimation } from '@/composables/useAnimation';
 import { useNewsLogic } from '@/composables/useNewsLogic';
 
@@ -825,6 +826,11 @@ watch(phase, (p) => {
   }
 });
 
+function renderMarkdown(md) {
+  if (!md) return '';
+  return marked.parse(String(md));
+}
+
 onUnmounted(() => {
   destroyGraph();
   window.removeEventListener('mousemove', onDragMove);
@@ -1186,6 +1192,18 @@ onUnmounted(() => {
 .signal-text { font-family: var(--ff-body); font-size: 13px; color: var(--text2); line-height: 1.7; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Markdown rendered output ── */
+.md-rendered { font-family: var(--ff-body); font-size: var(--text-sm); color: var(--text2); line-height: 1.8; }
+.md-rendered p { margin: 0 0 8px; }
+.md-rendered p:last-child { margin-bottom: 0; }
+.md-rendered strong { color: var(--text); font-weight: 700; }
+.md-rendered em { color: var(--text2); font-style: italic; }
+.md-rendered ul, .md-rendered ol { padding-left: 20px; margin: 6px 0; }
+.md-rendered li { margin-bottom: 4px; }
+.md-rendered code { font-family: var(--ff-mono); font-size: 11px; background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 2px; }
+.md-rendered h1, .md-rendered h2, .md-rendered h3 { font-family: var(--ff-head); font-weight: 700; color: var(--text); margin: 10px 0 6px; letter-spacing: var(--letter-spacing-display); }
+.md-rendered h3 { font-size: var(--text-base); }
 
 /* Graph view */
 .graph-container {

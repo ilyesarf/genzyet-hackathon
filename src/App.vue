@@ -181,7 +181,7 @@ provide('setLang', setLang);
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 50%, #0d0d0d 0%, #080808 100%);
+  background: var(--bg);
 }
 
 .ambient-orb {
@@ -209,8 +209,7 @@ provide('setLang', setLang);
 /* ── Sidebar ── */
 .sidebar {
   width: 260px;
-  background: rgba(8, 8, 8, 0.7);
-  backdrop-filter: blur(20px);
+  background: var(--bg);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -366,4 +365,18 @@ provide('setLang', setLang);
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Light theme overrides ── */
+html[data-theme="light"] .nav-link:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+html[data-theme="light"] .nav-link.active {
+  background: rgba(140, 80, 0, 0.08);
+}
+
+html[data-theme="light"] .lang-btn {
+  background: var(--bg3);
+  border-color: var(--border);
+}
 </style>

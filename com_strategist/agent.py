@@ -12,6 +12,7 @@ import io
 import re
 import json
 import logging
+import markdown as md_lib
 
 from llm import call_llm
 
@@ -292,6 +293,9 @@ def _parse_table_rows(table_text: str) -> list[dict]:
         cells = [c.strip() for c in line.strip("|").split("|")]
         if len(cells) < 5:
             continue
+        # Skip the header row (number column is "#" or non-numeric)
+        if not cells[0].strip().lstrip('0123456789').strip() == '' or cells[0].strip() == '':
+            continue
         rows.append({
             "number": cells[0],
             "gap_identified": cells[1],
@@ -318,6 +322,24 @@ def _extract_emoji_section(raw: str, keyword: str) -> str:
     return ""
 
 
+_MD_EXTENSIONS = ["tables", "fenced_code", "sane_lists", "nl2br"]
+
+# Strip these two sections before building html_body / html_rest
+_SMART_SECTION_RE = re.compile(
+    r"###\s*.{0,10}SMART\s+Improvement\s+Recommendations.+?(?=\n###\s|\Z)",
+    re.DOTALL | re.IGNORECASE,
+)
+_BRAND_SECTION_RE = re.compile(
+    r"###\s*.{0,10}Brand\s+Context\s+Snapshot.+?(?=\n###\s|\Z)",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def _md_to_html(raw: str) -> str:
+    """Convert the LLM markdown report to semantic HTML."""
+    return md_lib.markdown(raw, extensions=_MD_EXTENSIONS)
+
+
 def _parse_report(raw: str) -> dict:
     """
     Parse the Editorial Plan Improvement Report into structured fields.
@@ -325,25 +347,48 @@ def _parse_report(raw: str) -> dict:
     Returns::
 
         {
+            "html_output": str,               # full report as rendered HTML
             "raw_markdown": str,
-            "missing_context": str,           # empty string if not present
+            "missing_context": str,
             "brand_context_snapshot": str,
             "recommendations": [
                 { number, gap_identified, brief_signal,
                   smart_recommendation, priority, feasibility_note }
             ],
             "preserved_strengths": str,
-            "flagged_recommendations": str,   # empty string if not present
+            "flagged_recommendations": str,
             "suggested_next_steps": str,
         }
     """
+    html_output = _md_to_html(raw)
+
     missing_context = _extract_emoji_section(raw, "Missing Context")
     brand_snapshot = _extract_emoji_section(raw, "Brand Context Snapshot")
+
+    # html_missing_context: just the Missing Context section as HTML
+    html_missing_context = _md_to_html(missing_context) if missing_context else ""
+
+    # html_brand_context: just the Brand Context Snapshot section as HTML
+    html_brand_context = _md_to_html(brand_snapshot) if brand_snapshot else ""
+
+    # html_body: full report minus the SMART table (backward compat)
+    raw_no_smart = _SMART_SECTION_RE.sub("", raw).strip()
+    html_body = _md_to_html(raw_no_smart)
+
+    # html_rest: everything except Brand Context Snapshot AND SMART table AND Missing Context
+    # (rendered between the visual cards and nothing else)
+    _MISSING_SECTION_RE = re.compile(
+        r"###\s*.{0,10}Missing\s+Context.+?(?=\n###\s|\Z)",
+        re.DOTALL | re.IGNORECASE,
+    )
+    raw_rest = _BRAND_SECTION_RE.sub("", raw_no_smart)
+    raw_rest = _MISSING_SECTION_RE.sub("", raw_rest).strip()
+    html_rest = _md_to_html(raw_rest)
+
     preserved = _extract_emoji_section(raw, "Preserved Strengths")
     flagged = _extract_emoji_section(raw, "Flagged Recommendations")
     next_steps = _extract_emoji_section(raw, "Suggested Next Steps")
 
-    # Extract the recommendations table
     table_match = re.search(
         r"SMART Improvement Recommendations[^\n]*\n((?:.*\n)*?\|.*?)(?=\n---|\n###|\Z)",
         raw,
@@ -352,6 +397,11 @@ def _parse_report(raw: str) -> dict:
     recommendations = _parse_table_rows(table_match.group(1)) if table_match else []
 
     return {
+        "html_output": html_output,
+        "html_body": html_body,
+        "html_brand_context": html_brand_context,
+        "html_missing_context": html_missing_context,
+        "html_rest": html_rest,
         "raw_markdown": raw,
         "missing_context": missing_context,
         "brand_context_snapshot": brand_snapshot,

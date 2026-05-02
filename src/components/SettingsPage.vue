@@ -295,7 +295,7 @@ watch(activeTheme, () => {
   font-size: 13px;
   padding: 4px 10px;
   outline: none;
-  color-scheme: dark;
+  color-scheme: inherit;
 }
 
 /* API Cards */

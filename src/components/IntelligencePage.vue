@@ -290,25 +290,55 @@
           </div>
         </div>
 
-        <!-- D1-D4 Section cards -->
-        <div class="audit-sections">
-          <div
-            v-for="(sec, key) in auditSections"
-            :key="key"
-            class="audit-section"
-            :class="{ collapsed: collapsedSections[key] }"
-          >
-            <div class="section-header" @click="toggleSection(key)">
-              <div class="section-tag" :class="key.toLowerCase()">{{ key }}</div>
-              <span class="section-title">{{ sectionLabel(key) }}</span>
-              <span class="section-toggle">{{ collapsedSections[key] ? '▸' : '▾' }}</span>
+        <!-- Missing Context (High priority flag) -->
+        <div v-if="auditMissingHtml" class="audit-missing-context">
+          <div class="section-body" v-html="renderMarkdown(auditMissingHtml)"></div>
+        </div>
+
+        <!-- Brand Context Snapshot -->
+        <div v-if="auditBrandHtml" class="audit-brand-context">
+          <div class="section-body" v-html="renderMarkdown(auditBrandHtml)"></div>
+        </div>
+
+        <!-- ── SMART Recommendations Visual Grid ── -->
+        <div v-if="auditRecommendations.length" class="recs-visual">
+          <div class="recs-visual-label">SMART IMPROVEMENT RECOMMENDATIONS</div>
+          <div class="recs-grid">
+            <div
+              v-for="rec in auditRecommendations"
+              :key="rec.number"
+              class="rec-card"
+              :class="`prio-${prioKey(rec.priority)}`"
+            >
+              <!-- compact view (always visible) -->
+              <div class="rec-head">
+                <span class="rec-num">#{{ rec.number }}</span>
+                <span class="rec-badge">{{ rec.priority }}</span>
+              </div>
+              <div class="rec-gap">{{ rec.gap_identified }}</div>
+
+              <!-- expanded view (CSS hover) -->
+              <div class="rec-expand">
+                <div class="rec-divider"></div>
+                <div v-if="rec.brief_signal" class="rec-field">
+                  <div class="rec-field-label">SIGNAL</div>
+                  <div class="rec-field-val">{{ rec.brief_signal }}</div>
+                </div>
+                <div class="rec-field">
+                  <div class="rec-field-label">SMART RECOMMENDATION</div>
+                  <div class="rec-field-val">{{ rec.smart_recommendation }}</div>
+                </div>
+                <div v-if="rec.feasibility_note" class="rec-field">
+                  <div class="rec-field-label">FEASIBILITY</div>
+                  <div class="rec-field-val">{{ rec.feasibility_note }}</div>
+                </div>
+              </div>
             </div>
-            <div v-if="!collapsedSections[key]" class="section-body" v-html="renderMarkdown(sec)"></div>
           </div>
         </div>
 
-        <!-- Fallback: full raw output if no sections parsed -->
-        <div v-if="Object.keys(auditSections).length === 0" class="audit-raw">
+        <!-- Rest of audit report (brand context, strengths, next steps) -->
+        <div v-if="auditRaw" class="audit-raw">
           <div class="section-body" v-html="renderMarkdown(auditRaw)"></div>
         </div>
 
@@ -699,10 +729,30 @@ const auditSections = computed(() => {
   return auditResult.value.sections;
 });
 
+// Missing context section — rendered at the very top if present
+const auditMissingHtml = computed(() => {
+  if (!auditResult.value) return '';
+  return auditResult.value.html_missing_context || '';
+});
+
+// Brand context section — rendered above the SMART cards
+const auditBrandHtml = computed(() => {
+  if (!auditResult.value) return '';
+  return auditResult.value.html_brand_context || '';
+});
+
+// Everything except brand context and SMART table — rendered below the cards
 const auditRaw = computed(() => {
   if (!auditResult.value) return '';
   if (typeof auditResult.value === 'string') return auditResult.value;
-  return auditResult.value.raw_markdown || JSON.stringify(auditResult.value, null, 2);
+  return auditResult.value.html_rest || auditResult.value.html_body || auditResult.value.html_output || auditResult.value.raw_markdown || '';
+});
+
+const auditRecommendations = computed(() => {
+  if (!auditResult.value || !Array.isArray(auditResult.value.recommendations)) return [];
+  return auditResult.value.recommendations.filter(
+    r => r.number && r.number !== '#' && r.gap_identified && r.gap_identified.trim()
+  );
 });
 
 function sectionLabel(key) {
@@ -719,10 +769,20 @@ function toggleSection(key) {
   collapsedSections[key] = !collapsedSections[key];
 }
 
-// ── Lightweight markdown → HTML ──
+function prioKey(priority) {
+  const p = (priority || '').toLowerCase();
+  if (p.includes('critical')) return 'critical';
+  if (p.includes('high')) return 'high';
+  if (p.includes('medium')) return 'medium';
+  return 'low';
+}
+
+// ── Render markdown or pass through pre-built HTML from backend ──
 function renderMarkdown(md) {
   if (!md) return '';
-  const html = marked.parse(md);
+  // Backend now returns html_output (already HTML); detect by leading tag
+  const isHtml = typeof md === 'string' && md.trimStart().startsWith('<');
+  const html = isHtml ? md : marked.parse(md);
   return `<div class="md-rendered">${html}</div>`;
 }
 
@@ -1062,34 +1122,77 @@ function exportAudit() {
   color: var(--text2);
 }
 
+/* ── Markdown Rendered Output ── */
+.md-rendered { font-family: var(--ff-body); font-size: var(--text-sm); color: var(--text2); line-height: 1.8; }
+.md-rendered p { margin: 0 0 10px; }
+.md-rendered p:last-child { margin-bottom: 0; }
+.md-rendered strong { color: var(--text); font-weight: 700; }
+.md-rendered em { color: var(--text2); font-style: italic; }
+.md-rendered ul, .md-rendered ol { padding-left: 20px; margin: 8px 0; }
+.md-rendered li { margin-bottom: 6px; }
+.md-rendered code { font-family: var(--ff-mono); font-size: 11px; background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 2px; }
+.md-rendered h1, .md-rendered h2, .md-rendered h3 { font-family: var(--ff-head); font-weight: 700; color: var(--text); margin: 14px 0 8px; letter-spacing: var(--letter-spacing-display); }
+.md-rendered h1 { font-size: var(--text-lg); }
+.md-rendered h2 { font-size: var(--text-md); }
+.md-rendered h3 { font-size: var(--text-base); }
+.md-rendered blockquote { border-left: 3px solid var(--accent); padding-left: 16px; margin: 10px 0; color: var(--text3); }
+
 /* ── Markdown Rendered Tables ── */
 .md-rendered table {
   width: 100%;
   border-collapse: collapse;
-  margin: 16px 0;
+  margin: 20px 0;
   font-family: var(--ff-body);
   font-size: var(--text-sm);
-}
-
-.md-rendered th, .md-rendered td {
-  border: 1px solid var(--border);
-  padding: 12px 16px;
-  text-align: left;
+  border: 1.5px solid var(--border2);
+  display: block;
+  overflow-x: auto;
 }
 
 .md-rendered th {
-  background: rgba(255, 255, 255, 0.05);
+  padding: 14px 20px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.06);
+  font-family: var(--ff-mono);
+  font-size: 10px;
   font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--text);
+  border-bottom: 1.5px solid var(--border2);
+  border-right: 1px solid var(--border2);
+  white-space: nowrap;
+}
+
+.md-rendered th:last-child {
+  border-right: none;
 }
 
 .md-rendered td {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
   color: var(--text2);
+  line-height: 1.6;
+  vertical-align: top;
 }
 
-.md-rendered tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.01);
+.md-rendered td:last-child {
+  border-right: none;
 }
+
+.md-rendered tr:last-child td {
+  border-bottom: none;
+}
+
+.md-rendered tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.md-rendered tr:hover td {
+  background: rgba(255, 255, 255, 0.04);
+}
+
 
 /* ── News Selection ── */
 .news-selection {
@@ -1226,6 +1329,153 @@ function exportAudit() {
   margin-top: 32px;
   display: flex;
   justify-content: flex-end;
+}
+
+/* ── Brand Context Snapshot ── */
+.audit-brand-context {
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+}
+
+/* ── Missing Context Section ── */
+.audit-missing-context {
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  background: rgba(192, 96, 96, 0.04);
+  border: 1px solid rgba(192, 96, 96, 0.2);
+  border-left: 3px solid #c06060;
+}
+
+/* ── SMART Recommendations Visual Grid ── */
+.recs-visual {
+  margin: 20px 0 28px;
+}
+
+.recs-visual-label {
+  font-family: var(--ff-head);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: var(--letter-spacing-display);
+  margin-bottom: 24px;
+  color: var(--accent);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.recs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+/* Priority color variables */
+.rec-card.prio-critical { --pc: #c06060; --pc-bg: rgba(192, 96, 96, 0.06); }
+.rec-card.prio-high     { --pc: #c09050; --pc-bg: rgba(192, 144, 80, 0.06); }
+.rec-card.prio-medium   { --pc: #5090c0; --pc-bg: rgba(80, 144, 192, 0.06); }
+.rec-card.prio-low      { --pc: #50a87a; --pc-bg: rgba(80, 168, 122, 0.06); }
+
+.rec-card {
+  position: relative;
+  background: var(--pc-bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--pc, var(--border2));
+  padding: 14px 16px;
+  cursor: default;
+  transition: background 0.2s, border-color 0.15s, box-shadow 0.2s;
+}
+
+.rec-card:hover {
+  background: var(--pc-bg);
+  border-color: var(--pc);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--pc) 20%, transparent);
+}
+
+.rec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.rec-num {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 0.06em;
+}
+
+.rec-badge {
+  font-family: var(--ff-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--pc);
+  border: 1px solid var(--pc);
+  padding: 2px 7px;
+}
+
+.rec-gap {
+  font-family: var(--ff-head);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+/* Expanded panel — hidden by default, revealed on hover via max-height */
+.rec-expand {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.rec-card:hover .rec-gap {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  display: block;
+}
+
+.rec-card:hover .rec-expand {
+  max-height: 640px;
+}
+
+.rec-divider {
+  height: 1px;
+  background: var(--pc);
+  opacity: 0.25;
+  margin: 12px 0;
+}
+
+.rec-field {
+  margin-bottom: 12px;
+}
+
+.rec-field:last-child {
+  margin-bottom: 0;
+}
+
+.rec-field-label {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text3);
+  letter-spacing: 0.12em;
+  margin-bottom: 5px;
+}
+
+.rec-field-val {
+  font-family: var(--ff-body);
+  font-size: var(--text-sm);
+  color: var(--text2);
+  line-height: 1.65;
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }

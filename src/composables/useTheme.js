@@ -62,6 +62,21 @@ const THEME_DEFS = {
     '--green': '#34d399',
     '--blue': '#60a5fa',
   },
+  'light': {
+    '--bg': '#fafaf8',
+    '--bg2': '#f0ede6',
+    '--bg3': '#e8e4dc',
+    '--border': '#d0cdc6',
+    '--border2': '#b8b5ae',
+    '--text': '#1a1814',
+    '--text2': '#5a5650',
+    '--text3': '#9a9690',
+    '--accent': 'oklch(48% 0.18 65)',
+    '--accent2': 'oklch(40% 0.16 65)',
+    '--red': 'oklch(50% 0.2 25)',
+    '--green': 'oklch(45% 0.15 145)',
+    '--blue': 'oklch(50% 0.15 245)',
+  },
 };
 
 // Singleton reactive state
@@ -85,6 +100,9 @@ function applyTheme() {
   for (const [prop, val] of Object.entries(vars)) {
     root.style.setProperty(prop, val);
   }
+  const isLight = activeTheme.value === 'light';
+  root.setAttribute('data-theme', activeTheme.value);
+  root.style.colorScheme = isLight ? 'light' : 'dark';
   saveToStorage();
 }
 
@@ -92,13 +110,21 @@ export function useTheme() {
   loadFromStorage();
   watch(activeTheme, applyTheme, { immediate: true });
 
+  const NAMES = {
+    'dark-gold': 'Dark Gold',
+    'dark-blue': 'Midnight Blue',
+    'dark-green': 'Forest',
+    'dark-purple': 'Amethyst',
+    'light': 'Light',
+  };
+
   return {
     activeTheme,
     themes: Object.keys(THEME_DEFS).map(id => {
       const d = THEME_DEFS[id];
       return {
         id,
-        name: id === 'dark-gold' ? 'Dark Gold' : id === 'dark-blue' ? 'Midnight Blue' : id === 'dark-green' ? 'Forest' : 'Amethyst',
+        name: NAMES[id] || id,
         bg: d['--bg'],
         sidebar: d['--bg2'],
         accent: d['--accent'],

@@ -10,7 +10,8 @@
       "PowerShell(Invoke-WebRequest -Uri \"http://localhost:8002/health\" -Method GET -UseBasicParsing | Select-Object StatusCode, Content)",
       "WebSearch",
       "Bash(curl *)",
-      "Bash(docker exec khaberni-frontend *)"
+      "Bash(docker exec khaberni-frontend *)",
+      "Bash(docker compose *)"
     ]
   }
 }

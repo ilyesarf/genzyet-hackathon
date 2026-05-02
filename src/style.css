@@ -102,6 +102,26 @@ html, body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
+/* ── Light theme global overrides ── */
+html[data-theme="light"] .ambient-bg {
+  background: radial-gradient(circle at 60% 40%, var(--bg2) 0%, var(--bg) 70%);
+}
+
+html[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: var(--border2);
+}
+
+html[data-theme="light"] ::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Cards / surfaces that use white-alpha tints need to invert to black-alpha on light */
+html[data-theme="light"] .md-rendered code {
+  background: var(--bg3);
+  color: var(--text);
+}
+
 /* Motion Accessibility */
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
