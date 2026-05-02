@@ -220,16 +220,8 @@
           <span class="banner-text">STRATEGY IMPROVEMENTS READY</span>
           <span v-if="selectedNews.length > 0" class="banner-sub">· based on {{ selectedNews.length }} news items</span>
         </div>
-        <div class="improvements-list">
-          <div v-for="(imp, i) in STRATEGY_IMPROVEMENTS" :key="i" class="improvement-card">
-            <div class="improvement-header">
-              <span class="improvement-type" :style="{ borderColor: typeColors[imp.type], color: typeColors[imp.type] }">
-                {{ imp.type }}
-              </span>
-              <span class="improvement-section">{{ imp.section }}</span>
-            </div>
-            <p class="improvement-text">{{ imp.text }}</p>
-          </div>
+        <div class="improvements-list markdown-body" style="white-space: pre-wrap; font-family: var(--ff-mono); font-size: 13px; line-height: 1.6; color: var(--text2); background: var(--bg2); padding: 24px; border: 1px solid var(--border);">
+          {{ auditResult }}
         </div>
         <div class="result-actions">
           <button class="btn-export">EXPORT ↗</button>
@@ -244,6 +236,7 @@
 import { ref, computed, onMounted } from 'vue';
 
 const SCRAPER_BASE = '/api/scraper';
+const STRATEGIST_BASE = '/api/strategist';
 
 const props = defineProps({
   t: Object,
@@ -254,6 +247,7 @@ const file = ref(null);
 const dragging = ref(false);
 const phase = ref('upload'); // upload | news-select | improving | result
 const improvingStep = ref(0);
+const auditResult = ref('');
 const historyView = ref('card'); // card | list
 const selectedNews = ref([]);
 const expandedHistory = ref(null);
@@ -336,12 +330,7 @@ const HISTORY_DATA = [
   { id: 5, name: "Annual PR Strategy 2026", file: "Annual_PR_2026.pptx", date: "Mar 30, 2026", newsUsed: ["Champions League preview", "Bloomberg Gen Z article"], improvements: 6, status: "done" },
 ];
 
-const STRATEGY_IMPROVEMENTS = [
-  { section: "Executive Summary", type: "REWRITE", text: "Lead with AI disruption narrative — high urgency score (88) in tech this week makes this immediately relevant to your client's stakeholders." },
-  { section: "Media Channels", type: "ADD", text: "Include short-video distribution (TikTok, Reels) targeting Gen Z. Data shows 34% shift away from traditional news channels in your demographic." },
-  { section: "Messaging Tone", type: "REFINE", text: "Adjust economic framing to be cautiously optimistic — IMF downgrade creates a sensitive window; avoid overcommitting on growth projections." },
-  { section: "Timeline", type: "INSERT", text: "Add a 48h reactive window for AI-related news. OpenAI & Meta announcements create opportunities for thought-leadership content." },
-];
+
 
 const selectedNewsItems = computed(() => {
   return NEWS_DATA.value.filter(n => selectedNews.value.includes(n.id));
@@ -362,20 +351,50 @@ const triggerFileInput = () => {
   fileInput.value.click();
 };
 
-const handleImprove = () => {
+const handleImprove = async () => {
+  if (!file.value) return;
+  
   phase.value = 'improving';
   improvingStep.value = 0;
+  auditResult.value = '';
+  
   let step = 0;
   const iv = setInterval(() => {
     step++;
-    improvingStep.value = Math.min(step - 1, agentSteps.length - 1);
-    if (step >= agentSteps.length) {
-      clearInterval(iv);
-      setTimeout(() => {
-        phase.value = 'result';
-      }, 400);
-    }
+    improvingStep.value = Math.min(step, agentSteps.length - 2);
   }, 700);
+
+  try {
+    const formData = new FormData();
+    formData.append('strategy_file', file.value);
+    formData.append('mode', 'detail');
+    
+    if (selectedNewsItems.value.length > 0) {
+      formData.append('analyst_output', JSON.stringify(selectedNewsItems.value));
+    }
+
+    const res = await fetch(`${STRATEGIST_BASE}/audit/upload`, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!res.ok) throw new Error(`API error: ${res.status}`);
+
+    const json = await res.json();
+    auditResult.value = json.data;
+
+    clearInterval(iv);
+    improvingStep.value = agentSteps.length - 1;
+    setTimeout(() => {
+      phase.value = 'result';
+    }, 400);
+
+  } catch (err) {
+    console.error('Audit failed:', err);
+    clearInterval(iv);
+    alert('Audit failed. Ensure com_strategist is running.');
+    phase.value = 'news-select';
+  }
 };
 
 const toggleNews = (id) => {
