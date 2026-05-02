@@ -215,16 +215,50 @@
 
       <!-- ── RESULT PHASE ── -->
       <div v-if="phase === 'result'" class="result-phase">
+        <!-- Status banner -->
         <div class="result-banner">
           <div class="banner-dot"></div>
-          <span class="banner-text">STRATEGY IMPROVEMENTS READY</span>
-          <span v-if="selectedNews.length > 0" class="banner-sub">· based on {{ selectedNews.length }} news items</span>
+          <span class="banner-text">AUDIT COMPLETE</span>
+          <span v-if="selectedNews.length > 0" class="banner-sub">· {{ selectedNews.length }} news items cross-referenced</span>
         </div>
-        <div class="improvements-list markdown-body" style="white-space: pre-wrap; font-family: var(--ff-mono); font-size: 13px; line-height: 1.6; color: var(--text2); background: var(--bg2); padding: 24px; border: 1px solid var(--border);">
-          {{ auditResult }}
+
+        <!-- Audit meta header -->
+        <div class="audit-meta">
+          <div class="meta-item">
+            <span class="meta-label">MODE</span>
+            <span class="meta-badge" :class="auditMode.toLowerCase()">{{ auditMode }}</span>
+          </div>
+          <div v-if="auditGap" class="meta-item">
+            <span class="meta-label">PRIMARY GAP</span>
+            <span class="meta-gap">{{ auditGap }}</span>
+          </div>
         </div>
+
+        <!-- D1-D4 Section cards -->
+        <div class="audit-sections">
+          <div
+            v-for="(sec, key) in auditSections"
+            :key="key"
+            class="audit-section"
+            :class="{ collapsed: collapsedSections[key] }"
+          >
+            <div class="section-header" @click="toggleSection(key)">
+              <div class="section-tag" :class="key.toLowerCase()">{{ key }}</div>
+              <span class="section-title">{{ sectionLabel(key) }}</span>
+              <span class="section-toggle">{{ collapsedSections[key] ? '▸' : '▾' }}</span>
+            </div>
+            <div v-if="!collapsedSections[key]" class="section-body" v-html="renderMarkdown(sec)"></div>
+          </div>
+        </div>
+
+        <!-- Fallback: full raw output if no sections parsed -->
+        <div v-if="Object.keys(auditSections).length === 0" class="audit-raw">
+          <div class="section-body" v-html="renderMarkdown(auditRaw)"></div>
+        </div>
+
+        <!-- Actions -->
         <div class="result-actions">
-          <button class="btn-export">EXPORT ↗</button>
+          <button class="btn-export" @click="exportAudit">EXPORT ↗</button>
           <button @click="reset" class="btn-back">NEW STRATEGY</button>
         </div>
       </div>
@@ -233,7 +267,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 
 const SCRAPER_BASE = '/api/scraper';
 const STRATEGIST_BASE = '/api/strategist';
@@ -248,6 +282,7 @@ const dragging = ref(false);
 const phase = ref('upload'); // upload | news-select | improving | result
 const improvingStep = ref(0);
 const auditResult = ref('');
+const collapsedSections = reactive({});
 const historyView = ref('card'); // card | list
 const selectedNews = ref([]);
 const expandedHistory = ref(null);
@@ -370,7 +405,17 @@ const handleImprove = async () => {
     formData.append('mode', 'detail');
     
     if (selectedNewsItems.value.length > 0) {
-      formData.append('analyst_output', JSON.stringify(selectedNewsItems.value));
+      const analystPayload = {
+        items: selectedNewsItems.value.map(n => ({
+          headline: n.title,
+          source: n.source,
+          date: n.time,
+          relevance_score: n.relevance > 80 ? 'High' : n.relevance > 60 ? 'Medium' : 'Low',
+          why_it_matters: `Urgency ${n.urgency}, Relevance ${n.relevance} — ${n.cat} category.`
+        })),
+        tldr: selectedNewsItems.value.slice(0, 3).map(n => n.title)
+      };
+      formData.append('analyst_output', JSON.stringify(analystPayload));
     }
 
     const res = await fetch(`${STRATEGIST_BASE}/audit/upload`, {
@@ -421,6 +466,109 @@ const getTagColor = (label) => {
   const colors = { BREAKING: "var(--red)", ALERT: "var(--accent)", HOT: "var(--green)" };
   return colors[label] || "var(--border2)";
 };
+
+// ── Audit result computed fields ──
+const auditMode = computed(() => {
+  if (!auditResult.value) return 'DETAIL';
+  return auditResult.value.audit_mode || 'DETAIL';
+});
+
+const auditGap = computed(() => {
+  if (!auditResult.value) return '';
+  return auditResult.value.primary_gap || '';
+});
+
+const auditSections = computed(() => {
+  if (!auditResult.value || !auditResult.value.sections) return {};
+  return auditResult.value.sections;
+});
+
+const auditRaw = computed(() => {
+  if (!auditResult.value) return '';
+  if (typeof auditResult.value === 'string') return auditResult.value;
+  return auditResult.value.raw_markdown || JSON.stringify(auditResult.value, null, 2);
+});
+
+function sectionLabel(key) {
+  const labels = {
+    D1: 'DECONSTRUCT — 6-W & Transmission Audit',
+    D2: 'DIAGNOSE — Filter & Rule Audit',
+    D3: 'DEVELOP — Matrix Optimization',
+    D4: 'DELIVER — Improvement Log',
+  };
+  return labels[key] || key;
+}
+
+function toggleSection(key) {
+  collapsedSections[key] = !collapsedSections[key];
+}
+
+// ── Lightweight markdown → HTML ──
+function renderMarkdown(md) {
+  if (!md) return '';
+  let html = md
+    // Escape HTML
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    // Horizontal rules
+    .replace(/^---+$/gm, '<hr>')
+    // Headers (### before ## before #)
+    .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    // Bold + italic
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // Italic
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // Unordered list items
+    .replace(/^[*\-•]\s+(.+)$/gm, '<li>$1</li>')
+    // Numbered list items
+    .replace(/^\d+\.\s+(.+)$/gm, '<li class="ol">$1</li>')
+    // Tables: header row
+    .replace(/^\|(.+)\|$/gm, (match, content) => {
+      const cells = content.split('|').map(c => c.trim());
+      // Skip separator rows like |---|---|
+      if (cells.every(c => /^[-:]+$/.test(c))) return '';
+      const cellHtml = cells.map(c => `<td>${c}</td>`).join('');
+      return `<tr>${cellHtml}</tr>`;
+    })
+    // Paragraphs: double newline
+    .replace(/\n\n+/g, '</p><p>')
+    // Single newlines within paragraphs
+    .replace(/\n/g, '<br>');
+
+  // Wrap consecutive <li> in <ul>
+  html = html.replace(/((?:<li>.*?<\/li>(?:<br>)?)+)/g, '<ul>$1</ul>');
+  html = html.replace(/((?:<li class="ol">.*?<\/li>(?:<br>)?)+)/g, '<ol>$1</ol>');
+  // Wrap consecutive <tr> in <table>
+  html = html.replace(/((?:<tr>.*?<\/tr>(?:<br>)?)+)/g, '<table>$1</table>');
+  // Clean up stray <br> inside lists/tables
+  html = html.replace(/<\/li><br>/g, '</li>');
+  html = html.replace(/<\/tr><br>/g, '</tr>');
+  // Remove empty paragraphs and <hr> leftovers
+  html = html.replace(/<p><\/p>/g, '');
+  html = html.replace(/<br><hr>/g, '<hr>');
+
+  return `<div class="md-rendered"><p>${html}</p></div>`;
+}
+
+// ── Export audit as text file ──
+function exportAudit() {
+  const text = auditRaw.value || 'No audit data.';
+  const blob = new Blob([text], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `straton-audit-${Date.now()}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 </script>
 
 <style scoped>
@@ -1042,79 +1190,271 @@ const getTagColor = (label) => {
   color: var(--green);
 }
 
-/* Result Phase */
+/* ═══════════════════════════════════════════════════════════════════
+   RESULT PHASE — Straton Audit Output
+   ═══════════════════════════════════════════════════════════════════ */
+
+.result-phase {
+  animation: fadeIn 0.3s ease-out;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
 .result-banner {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
-
 .banner-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: pulse-dot 2s ease-in-out infinite;
 }
-
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 4px var(--green); }
+  50% { box-shadow: 0 0 12px var(--green); }
+}
 .banner-text {
   font-family: var(--ff-mono);
   font-size: 10px;
   color: var(--green);
   letter-spacing: 0.08em;
 }
-
 .banner-sub {
   font-family: var(--ff-mono);
   font-size: 9px;
   color: var(--text3);
 }
 
-.improvements-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.improvement-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  padding: 20px;
-}
-
-.improvement-header {
+/* ── Audit Meta ── */
+.audit-meta {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 24px;
+  padding: 14px 20px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
 }
-
-.improvement-type {
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.meta-label {
   font-family: var(--ff-mono);
   font-size: 9px;
-  padding: 3px 8px;
+  color: var(--text3);
+  letter-spacing: 0.1em;
+}
+.meta-badge {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 10px;
   border: 1px solid;
+  letter-spacing: 0.06em;
+}
+.meta-badge.detail {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.meta-badge.basic {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.meta-gap {
+  font-family: var(--ff-body);
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 500;
 }
 
-.improvement-section {
+/* ── Section Cards ── */
+.audit-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.audit-section {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  transition: all 0.2s;
+}
+.audit-section:hover {
+  border-color: var(--border2);
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  cursor: pointer;
+  user-select: none;
+}
+.section-tag {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+.section-tag.d1 { background: rgba(255,170,0,0.12); color: var(--accent); }
+.section-tag.d2 { background: rgba(255,80,80,0.12); color: var(--red); }
+.section-tag.d3 { background: rgba(80,180,255,0.12); color: var(--blue); }
+.section-tag.d4 { background: rgba(0,200,100,0.12); color: var(--green); }
+
+.section-title {
   font-family: var(--ff-head);
   font-size: 13px;
   font-weight: 600;
+  color: var(--text);
+  flex: 1;
 }
-
-.improvement-text {
-  font-family: var(--ff-body);
+.section-toggle {
   font-size: 12px;
-  color: var(--text2);
-  line-height: 1.75;
+  color: var(--text3);
+  flex-shrink: 0;
 }
 
+.section-body {
+  padding: 0 20px 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+/* ── Raw fallback ── */
+.audit-raw {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 20px;
+  margin-bottom: 8px;
+}
+
+/* ── Markdown rendered content ── */
+.section-body :deep(.md-rendered) {
+  font-family: var(--ff-body);
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text2);
+}
+
+.section-body :deep(h1),
+.section-body :deep(h2),
+.section-body :deep(h3),
+.section-body :deep(h4) {
+  font-family: var(--ff-head);
+  color: var(--text);
+  margin-top: 16px;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+.section-body :deep(h1) { font-size: 18px; font-weight: 700; }
+.section-body :deep(h2) { font-size: 15px; font-weight: 700; }
+.section-body :deep(h3) { font-size: 13px; font-weight: 700; letter-spacing: 0.01em; }
+.section-body :deep(h4) { font-size: 12px; font-weight: 600; color: var(--text2); }
+
+.section-body :deep(strong) {
+  color: var(--text);
+  font-weight: 600;
+}
+.section-body :deep(em) {
+  color: var(--accent);
+  font-style: italic;
+}
+.section-body :deep(code) {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  background: var(--bg3);
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  color: var(--accent);
+}
+
+.section-body :deep(ul),
+.section-body :deep(ol) {
+  padding-left: 0;
+  margin: 8px 0;
+  list-style: none;
+}
+.section-body :deep(li) {
+  position: relative;
+  padding: 6px 0 6px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.section-body :deep(li):last-child {
+  border-bottom: none;
+}
+.section-body :deep(li)::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-family: var(--ff-mono);
+  font-size: 11px;
+}
+.section-body :deep(li.ol)::before {
+  content: counter(li-counter);
+  counter-increment: li-counter;
+  color: var(--text3);
+  font-size: 10px;
+}
+.section-body :deep(ol) {
+  counter-reset: li-counter;
+}
+
+.section-body :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 11px;
+}
+.section-body :deep(tr) {
+  border-bottom: 1px solid var(--border);
+}
+.section-body :deep(tr:first-child) {
+  border-bottom: 2px solid var(--border2);
+}
+.section-body :deep(tr:first-child td) {
+  font-family: var(--ff-mono);
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.section-body :deep(td) {
+  padding: 8px 12px;
+  font-family: var(--ff-body);
+  color: var(--text2);
+  line-height: 1.5;
+}
+.section-body :deep(td:first-child) {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.section-body :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+.section-body :deep(p) {
+  margin: 0;
+}
+
+/* ── Result Actions ── */
 .result-actions {
   display: flex;
   gap: 10px;
   margin-top: 20px;
 }
-
 .btn-export {
   padding: 9px 20px;
   background: transparent;
@@ -1124,5 +1464,10 @@ const getTagColor = (label) => {
   font-size: 11px;
   cursor: pointer;
   letter-spacing: 0.06em;
+  transition: all 0.15s;
+}
+.btn-export:hover {
+  background: var(--accent);
+  color: #000;
 }
 </style>
