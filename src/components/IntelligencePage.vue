@@ -140,10 +140,24 @@
           </div>
         </div>
 
+        <!-- Quick actions — USE BRIEF / SKIP -->
+        <div class="quick-actions">
+          <button @click="handleUseBrief" class="btn-brief" :class="{ loading: briefLoading }">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <rect x="3" y="4" width="10" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="6" cy="8" r="1" fill="currentColor"/>
+              <circle cx="10" cy="8" r="1" fill="currentColor"/>
+              <path d="M6 2l2 2 2-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="square"/>
+            </svg>
+            {{ briefLoading ? 'FETCHING BRIEF…' : 'USE BRIEF' }}
+          </button>
+          <button @click="handleImprove" class="btn-outline-mono">SKIP — USE ALL NEWS</button>
+        </div>
+
         <div class="news-selection">
-          <div class="selection-label">SELECT NEWS TO IMPLEMENT IN YOUR STRATEGY</div>
+          <div class="selection-label">OR SELECT NEWS MANUALLY</div>
           <div class="selection-hint">
-            Choose which news items the agent should cross-reference when generating improvements.
+            Pick specific news items the agent should cross-reference.
             <span v-if="selectedNews.length > 0" class="accent-text">{{ selectedNews.length }} selected.</span>
           </div>
           <div class="news-list">
@@ -189,16 +203,6 @@
           <button @click="handleImprove" :disabled="selectedNews.length === 0" class="btn-accent" :class="{ disabled: selectedNews.length === 0 }">
             RUN AGENT {{ selectedNews.length > 0 ? `(${selectedNews.length} news items)` : "" }} →
           </button>
-          <button @click="handleUseBrief" class="btn-brief" :class="{ loading: briefLoading }">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <rect x="3" y="4" width="10" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/>
-              <circle cx="6" cy="8" r="1" fill="currentColor"/>
-              <circle cx="10" cy="8" r="1" fill="currentColor"/>
-              <path d="M6 2l2 2 2-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="square"/>
-            </svg>
-            {{ briefLoading ? 'FETCHING BRIEF…' : 'USE BRIEF' }}
-          </button>
-          <button @click="handleImprove" class="btn-outline-mono">SKIP — USE ALL NEWS</button>
         </div>
       </div>
 
@@ -688,6 +692,15 @@ function exportAudit() {
   font-family: var(--ff-mono);
   font-size: 11px;
   cursor: pointer;
+}
+
+.quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
 }
 
 .btn-brief {
