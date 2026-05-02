@@ -244,6 +244,8 @@ const CAT_COLORS = {
   social: 'var(--accent)',
   sport: 'oklch(65% 0.15 290)',
   weather: 'oklch(65% 0.12 200)',
+  culture: 'oklch(70% 0.15 320)',
+  lifestyle: 'oklch(65% 0.18 65)'
 };
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -282,12 +284,14 @@ let dragging = false;
 
 const categories = computed(() => [
   { id:'all', label: t.value.all },
+  { id:'culture', label: t.value.culture },
   { id:'tech', label: t.value.tech },
-  { id:'sport', label: t.value.sport },
-  { id:'social', label: t.value.social },
-  { id:'weather', label: t.value.weather },
-  { id:'politics', label: t.value.politics },
   { id:'economy', label: t.value.economy },
+  { id:'social', label: t.value.social },
+  { id:'lifestyle', label: t.value.lifestyle },
+  { id:'sport', label: t.value.sport },
+  { id:'politics', label: t.value.politics },
+  { id:'weather', label: t.value.weather },
 ]);
 
 const sortedNews = computed(() => {

@@ -3,7 +3,12 @@
     "allow": [
       "WebFetch(domain:api.anthropic.com)",
       "Read(//c/tmp/**)",
-      "Bash(tar -xzf design.tar.gz)"
+      "Bash(tar -xzf design.tar.gz)",
+      "Bash(Get-ChildItem C:\\\\Users\\\\Administrator\\\\Desktop\\\\genzyet-hackathon -Exclude node_modules)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "PowerShell(Get-ChildItem C:\\\\Users\\\\Administrator\\\\Desktop\\\\genzyet-hackathon | Where-Object { $_.Name -ne \"node_modules\" } | Format-Table Name, PSIsContainer -AutoSize)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:8002/health\" -Method GET -UseBasicParsing | Select-Object StatusCode, Content)",
+      "WebSearch"
     ]
   }
 }

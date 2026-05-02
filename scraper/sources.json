@@ -160,6 +160,119 @@
     "enabled": true
   },
   {
+    "name": "THD",
+    "type": "html",
+    "url": "https://www.thd.tn/",
+    "category": "tech-startups",
+    "language": "fr",
+    "enabled": true
+  },
+  {
+    "name": "The Dot",
+    "type": "html",
+    "url": "https://thedot.tn/en",
+    "category": "tech-startups",
+    "language": "en/fr",
+    "enabled": true
+  },
+  {
+    "name": "TunisianStartups",
+    "type": "html",
+    "url": "https://www.tunisian-startups.com/",
+    "category": "tech-startups",
+    "language": "fr/en",
+    "enabled": true
+  },
+  {
+    "name": "Tekiano",
+    "type": "html",
+    "url": "https://www.tekiano.com/",
+    "category": "tech-startups",
+    "language": "fr",
+    "enabled": true
+  },
+  {
+    "name": "Tunez Magazine",
+    "type": "html",
+    "url": "https://www.tunezmagazine.org/",
+    "category": "culture-arts",
+    "language": "fr",
+    "enabled": true
+  },
+  {
+    "name": "Misk",
+    "type": "html",
+    "url": "http://misk.tn/",
+    "category": "culture-arts",
+    "language": "fr/ar",
+    "enabled": true
+  },
+  {
+    "name": "Highlights",
+    "type": "html",
+    "url": "https://youthmagazine.tn/",
+    "category": "culture-arts",
+    "language": "fr/ar",
+    "enabled": true
+  },
+  {
+    "name": "La Sultane",
+    "type": "html",
+    "url": "https://lasultanemag.com/",
+    "category": "culture-arts",
+    "language": "fr",
+    "enabled": true
+  },
+  {
+    "name": "Our Tunisian Table",
+    "type": "html",
+    "url": "https://www.ourtunisiantable.com/",
+    "category": "gastronomy-travel",
+    "language": "en",
+    "enabled": true
+  },
+  {
+    "name": "Othentic Travel",
+    "type": "html",
+    "url": "https://othentictravel.com/en/",
+    "category": "gastronomy-travel",
+    "language": "fr/en",
+    "enabled": true
+  },
+  {
+    "name": "Wildness Tunisia",
+    "type": "html",
+    "url": "https://wildyness.com/",
+    "category": "gastronomy-travel",
+    "language": "fr/ar",
+    "enabled": true
+  },
+  {
+    "name": "Baya.tn",
+    "type": "html",
+    "url": "https://www.baya.tn/",
+    "category": "lifestyle-society",
+    "language": "fr/ar",
+    "enabled": true
+  },
+  {
+    "name": "Femmes de Tunisie",
+    "type": "facebook",
+    "url": "https://www.facebook.com/FemmesDeTunisieOfficiel",
+    "facebook_page_id": "FemmesDeTunisieOfficiel",
+    "category": "lifestyle-society",
+    "language": "fr",
+    "enabled": false
+  },
+  {
+    "name": "Webdo",
+    "type": "rss",
+    "url": "https://www.webdo.tn/fr/rss",
+    "category": "lifestyle-society",
+    "language": "fr",
+    "enabled": true
+  },
+  {
     "name": "Foot 24",
     "type": "facebook",
     "url": "https://www.facebook.com/www.foot24.tn",

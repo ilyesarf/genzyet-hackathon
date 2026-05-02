@@ -86,7 +86,7 @@ const TRANSLATIONS = {
   en: {
     nav_news: 'News Feed', nav_sources: 'Sources', nav_strategy: 'Strategy', nav_settings: 'Settings',
     update: 'Update', updating: 'Updating...', headlines: 'Top Headlines',
-    all: 'All', tech: 'Tech', sport: 'Sport', social: 'Social', weather: 'Weather', politics: 'Politics', economy: 'Economy',
+    all: 'All', tech: 'Tech', sport: 'Sport', social: 'Social', weather: 'Weather', politics: 'Politics', economy: 'Economy', culture: 'Culture', lifestyle: 'Lifestyle',
     urgency: 'Urgency', relevance: 'Relevance',
     run_agent: 'Run Analysis',
     sources_title: 'Manage Sources', add_source: 'Add Source',
@@ -96,7 +96,7 @@ const TRANSLATIONS = {
   fr: {
     nav_news: 'Actualités', nav_sources: 'Sources', nav_strategy: 'Stratégie', nav_settings: 'Paramètres',
     update: 'Actualiser', updating: 'Actualisation…', headlines: 'À la une',
-    all: 'Tout', tech: 'Tech', sport: 'Sport', social: 'Social', weather: 'Météo', politics: 'Politique', economy: 'Économie',
+    all: 'Tout', tech: 'Tech', sport: 'Sport', social: 'Social', weather: 'Météo', politics: 'Politique', economy: 'Économie', culture: 'Culture', lifestyle: 'Style de vie',
     urgency: 'Urgence', relevance: 'Pertinence',
     run_agent: "Lancer l'Analyse",
     sources_title: 'Gérer les Sources', add_source: 'Ajouter une Source',
@@ -106,7 +106,7 @@ const TRANSLATIONS = {
   ar: {
     nav_news: 'موجز الأخبار', nav_sources: 'المصادر', nav_strategy: 'الاستراتيجية', nav_settings: 'الإعدادات',
     update: 'تحديث', updating: 'جارٍ التحديث…', headlines: 'أبرز العناوين',
-    all: 'الكل', tech: 'تقنية', sport: 'رياضة', social: 'اجتماعي', weather: 'طقس', politics: 'سياسة', economy: 'اقتصاد',
+    all: 'الكل', tech: 'تقنية', sport: 'رياضة', social: 'اجتماعي', weather: 'طقس', politics: 'سياسة', economy: 'اقتصاد', culture: 'ثقافة', lifestyle: 'نمط الحياة',
     urgency: 'الإلحاح', relevance: 'الصلة',
     run_agent: 'تشغيل التحليل',
     sources_title: 'إدارة المصادر', add_source: 'إضافة مصدر',

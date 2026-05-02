@@ -58,7 +58,35 @@ import { ref, computed, inject, onMounted } from 'vue';
 const t = inject('t');
 const SCRAPER_BASE = '/api/scraper';
 
-const sources = ref([]);
+const sources = ref([
+  // Culture, Arts & Urban Lifestyle
+  { id: 1, name: "Tunez Magazine", type: "web", active: true, category: "culture", url: "tunezmagazine.org" },
+  { id: 2, name: "Misk (Cultural Media)", type: "web", active: true, category: "culture", url: "misk.tn" },
+  { id: 3, name: "Highlights", type: "web", active: true, category: "culture", url: "highlights.com.tn" },
+  { id: 4, name: "La Sultane", type: "web", active: true, category: "culture", url: "lasultanemag.com" },
+  { id: 5, name: "1001 Tunisie", type: "web", active: true, category: "culture", url: "1001tunisie.com" },
+  { id: 6, name: "Leaders (Culture/Essays)", type: "web", active: true, category: "culture", url: "leaders.com.tn" },
+  
+  // Tech & Innovation
+  { id: 7, name: "THD (Tunisie Haut Débit)", type: "web", active: true, category: "tech", url: "thd.tn" },
+  { id: 8, name: "The Dot", type: "web", active: true, category: "tech", url: "thedot.tn" },
+  { id: 9, name: "TunisianStartups", type: "web", active: true, category: "tech", url: "tunisian-startups.com" },
+  { id: 10, name: "Tekiano", type: "web", active: true, category: "tech", url: "tekiano.com" },
+  
+  // Gastronomy & Travel
+  { id: 11, name: "Our Tunisian Table", type: "web", active: true, category: "lifestyle", url: "ourtunisiantable.com" },
+  { id: 12, name: "Ôthentic Travel", type: "web", active: true, category: "lifestyle", url: "othentictravel.com" },
+  
+  // Business & Economy
+  { id: 13, name: "Managers (formerly Le Manager)", type: "web", active: true, category: "economy", url: "managers.tn" },
+  { id: 14, name: "Entreprises Magazine", type: "web", active: true, category: "economy", url: "entreprises-magazine.com" },
+  { id: 15, name: "WebManagerCenter", type: "web", active: true, category: "economy", url: "webmanagercenter.com" },
+  
+  // Lifestyle & Society
+  { id: 16, name: "Baya", type: "web", active: true, category: "social", url: "baya.tn" },
+  { id: 17, name: "Femmes de Tunisie", type: "web", active: true, category: "social", url: "femmesdetunisie.com" },
+  { id: 18, name: "Webdo (Culture/Lifestyle)", type: "web", active: true, category: "social", url: "webdo.tn" },
+]);
 const adding = ref(false);
 const newName = ref('');
 const newUrl = ref('');

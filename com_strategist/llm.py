@@ -40,17 +40,34 @@ def _call_groq(system_prompt: str, user_prompt: str) -> str:
     return response.choices[0].message.content
 
 
-def _call_gemini(system_prompt: str, user_prompt: str) -> str:
-    """Attempt a completion via Google Gemini."""
-    import google.generativeai as genai  # lazy import
+_GEMINI_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+]
 
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        system_instruction=system_prompt,
-    )
-    response = model.generate_content(user_prompt)
-    return response.text
+
+def _call_gemini(system_prompt: str, user_prompt: str) -> str:
+    """Attempt a completion via Google Gemini (tries models in order)."""
+    from google import genai  # google-genai package (v1 API)
+
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    full_prompt = f"{system_prompt}\n\n{user_prompt}"
+
+    last_exc: Exception = Exception("No Gemini models attempted")
+    for model_name in _GEMINI_MODELS:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=full_prompt,
+            )
+            logger.info("[LLM] Gemini responded using model=%s", model_name)
+            return response.text
+        except Exception as exc:
+            logger.warning("[LLM] Gemini model %s failed: %s", model_name, exc)
+            last_exc = exc
+
+    raise last_exc
 
 
 def call_llm(system_prompt: str, user_prompt: str) -> str:

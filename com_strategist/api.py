@@ -3,15 +3,16 @@ FastAPI application for the COM Strategist Agent (Straton v1.2).
 
 Endpoints
 ---------
-POST /audit              — JSON body: strategy_text + optional analyst_output
-POST /audit/upload       — multipart: strategy_file (PDF/DOCX/TXT) + form fields
+POST /audit              — JSON body: analyst_output (required) + strategy_text
+POST /audit/upload       — multipart: analyst_output (JSON string, required) + strategy_file
+GET  /health             — liveness check
 """
 
 import json
 import logging
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="COM Strategist Agent API — Straton v1.2",
     description=(
-        "CMI audit layer: takes the Analyst Agent's intelligence output and a "
+        "CMI audit layer: takes the Analyst Agent's full intelligence brief and a "
         "marketer-uploaded communication strategy, then returns a structured "
         "Straton audit with D1-D4 optimizations."
     ),
@@ -47,11 +48,9 @@ app.add_middleware(
 # ── JSON endpoint ──────────────────────────────────────────────────────────────
 
 class AuditRequest(BaseModel):
+    analyst_output: dict
     strategy_text: str
-    analyst_output: Optional[dict] = None
     mode: str = "detail"
-    window_hours: int = 24
-    category: Optional[str] = None
 
 
 @app.post("/audit", summary="Run a CMI audit (JSON input)")
@@ -59,20 +58,15 @@ def post_audit(body: AuditRequest):
     """
     Run Straton's 4-D audit on the provided communication strategy.
 
+    - **analyst_output**: full structured brief from the Analyst Agent
     - **strategy_text**: full text of the marketer's COM strategy document
-    - **analyst_output**: pre-fetched analyst intelligence (optional — if omitted
-      the agent calls the Analyst API automatically)
     - **mode**: `"basic"` for an agile review, `"detail"` for a full deep-dive
-    - **window_hours**: time window passed to the Analyst API when auto-fetching
-    - **category**: optional news category filter for auto-fetch
     """
     try:
         result = audit(
             strategy_text=body.strategy_text,
             analyst_output=body.analyst_output,
             mode=body.mode,
-            window_hours=body.window_hours,
-            category=body.category,
         )
         return JSONResponse(content={"status": "success", "data": result})
     except ValueError as exc:
@@ -95,25 +89,28 @@ ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
 
 @app.post("/audit/upload", summary="Run a CMI audit (file upload)")
 async def post_audit_upload(
+    analyst_output: str = Form(..., description="JSON string of the full Analyst Agent brief"),
     strategy_file: UploadFile = File(..., description="PDF, DOCX, TXT, or MD strategy document"),
     mode: str = Form("detail", description="'basic' or 'detail'"),
-    analyst_output: Optional[str] = Form(
-        None, description="JSON string of analyst output (auto-fetched if omitted)"
-    ),
-    window_hours: int = Form(24, description="Time window for auto-fetching analyst data"),
-    category: Optional[str] = Form(None, description="News category filter"),
 ):
     """
     Upload the marketer's strategy document as a file and run Straton's audit.
 
     Supported file types: **PDF**, **DOCX**, **TXT**, **MD**
 
+    - **analyst_output**: JSON string of the Analyst Agent's full brief (required)
     - **strategy_file**: the communication strategy document
     - **mode**: `"basic"` or `"detail"` (default: detail)
-    - **analyst_output**: optional pre-fetched JSON string from the Analyst Agent
-    - **window_hours**: hours window passed to Analyst API when auto-fetching
-    - **category**: optional news category filter
     """
+    # Parse analyst_output JSON
+    try:
+        parsed_analyst: dict = json.loads(analyst_output)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid JSON in 'analyst_output': {exc}",
+        )
+
     # Validate file extension
     filename = strategy_file.filename or ""
     suffix = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -140,24 +137,11 @@ async def post_audit_upload(
             detail="The uploaded document appears to be empty or unreadable.",
         )
 
-    # Parse analyst_output if provided as a JSON string
-    parsed_analyst: Optional[dict] = None
-    if analyst_output:
-        try:
-            parsed_analyst = json.loads(analyst_output)
-        except json.JSONDecodeError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Invalid JSON in 'analyst_output': {exc}",
-            )
-
     try:
         result = audit(
             strategy_text=strategy_text,
             analyst_output=parsed_analyst,
             mode=mode,
-            window_hours=window_hours,
-            category=category,
         )
         return JSONResponse(content={"status": "success", "data": result})
     except LLMError as exc:

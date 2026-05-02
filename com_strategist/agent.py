@@ -2,7 +2,7 @@
 COM Strategist Agent — Straton v1.2.
 
 Receives:
-  - analyst_output : structured intelligence produced by the Analyst Agent
+  - analyst_output : full structured brief produced by the Analyst Agent
   - strategy_text  : the marketer's communication strategy document (plain text)
   - mode           : "basic" (quick review) or "detail" (full architectural audit)
 
@@ -10,21 +10,12 @@ Returns a structured CMI audit with D1-D4 sections and an improvement log.
 """
 
 import io
-import os
 import re
 import logging
-from typing import Optional
-
-import requests
-from dotenv import load_dotenv
 
 from llm import call_llm
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
-
-ANALYST_API_URL = os.getenv("ANALYST_API_URL", "http://localhost:8001")
 
 # ── System prompt (Straton v1.2) ───────────────────────────────────────────────
 SYSTEM_PROMPT = """\
@@ -107,7 +98,6 @@ All audits must evaluate success using these standard formulas:
 
 # ── Token budget constants ─────────────────────────────────────────────────────
 MAX_STRATEGY_CHARS = 6000   # ~1 500 tokens — keep Groq within budget
-MAX_ANALYST_ITEMS = 10      # top N intelligence items sent to Straton
 
 
 # ── Document text extraction ───────────────────────────────────────────────────
@@ -153,35 +143,9 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
 # ── Prompt construction ────────────────────────────────────────────────────────
 
 def _format_analyst_output(analyst_output: dict) -> str:
-    """Render the analyst output as a compact markdown block."""
-    lines: list[str] = ["## CURRENT MARKET INTELLIGENCE\n"]
-
-    tldr = analyst_output.get("tldr", [])
-    if tldr:
-        lines.append("### TL;DR Brief")
-        for bullet in tldr:
-            lines.append(f"- {bullet}")
-        lines.append("")
-
-    items = analyst_output.get("items", [])[:MAX_ANALYST_ITEMS]
-    if items:
-        lines.append("### Key Intelligence Items")
-        for item in items:
-            headline = item.get("headline", "N/A")
-            score = item.get("relevance_score", "")
-            why = item.get("why_it_matters", "")
-            source = item.get("source", "")
-            date = item.get("date", "")
-            lines.append(f"**{headline}**")
-            if source or date:
-                lines.append(f"*{source}{' — ' + date if date else ''}*")
-            if score:
-                lines.append(f"Relevance: {score}")
-            if why:
-                lines.append(f"Why it matters: {why}")
-            lines.append("")
-
-    return "\n".join(lines)
+    """Serialize the full analyst brief as-is into the prompt."""
+    import json
+    return "## ANALYST BRIEF\n\n" + json.dumps(analyst_output, ensure_ascii=False, indent=2)
 
 
 def _build_user_prompt(
@@ -268,41 +232,18 @@ def _parse_audit_response(raw: str) -> dict:
     }
 
 
-# ── Analyst fetching ───────────────────────────────────────────────────────────
-
-def _fetch_analyst_output(
-    window_hours: int = 24,
-    category: Optional[str] = None,
-) -> dict:
-    """Call GET /analyze on the Analyst API and return structured data."""
-    params: dict = {"window": window_hours}
-    if category:
-        params["category"] = category
-
-    url = f"{ANALYST_API_URL.rstrip('/')}/analyze"
-    logger.info("[Strategist] Fetching analyst output from %s  params=%s", url, params)
-
-    resp = requests.get(url, params=params, timeout=60)
-    resp.raise_for_status()
-
-    payload = resp.json()
-    return payload.get("data", {})
-
-
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def audit(
     strategy_text: str,
-    analyst_output: Optional[dict] = None,
+    analyst_output: dict,
     mode: str = "detail",
-    window_hours: int = 24,
-    category: Optional[str] = None,
 ) -> dict:
     """
     Run the Straton CMI audit.
 
-    If ``analyst_output`` is None the agent fetches fresh intelligence from
-    the Analyst API automatically.
+    ``analyst_output`` is the full structured brief from the Analyst Agent —
+    it must be provided by the caller, never fetched internally.
 
     Returns::
 
@@ -313,9 +254,6 @@ def audit(
             "sections": { "D1": str, "D2": str, "D3": str, "D4": str }
         }
     """
-    if analyst_output is None:
-        analyst_output = _fetch_analyst_output(window_hours, category)
-
     if not strategy_text.strip():
         raise ValueError("strategy_text must not be empty.")
 

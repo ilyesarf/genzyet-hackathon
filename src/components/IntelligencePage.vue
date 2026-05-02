@@ -327,7 +327,9 @@ const CAT_COLORS = {
   politics: "var(--red)", 
   social: "var(--accent)", 
   sport: "oklch(65% 0.15 290)", 
-  weather: "oklch(65% 0.12 200)" 
+  weather: "oklch(65% 0.12 200)",
+  culture: "oklch(70% 0.15 320)",
+  lifestyle: "oklch(65% 0.18 65)"
 };
 
 // Live article data from scraper
