@@ -59,6 +59,33 @@ def scrape_html(source):
         logger.error(f"Error scraping HTML {source['name']}: {e}")
 
 
+def scrape_single_source(source):
+    if not source.get('enabled', False):
+        return
+        
+    stype = source.get('type')
+    if stype == 'rss':
+        scrape_rss(source)
+    elif stype == 'html':
+        scrape_html(source)
+    elif stype == 'facebook':
+        page_id = source.get('facebook_page_id')
+        if page_id:
+            posts = scrape_facebook_page(page_id, max_posts=10)
+            for post in posts:
+                insert_article(
+                    source=source['name'],
+                    url=post['url'],
+                    title=post['title'],
+                    body=post['body'],
+                    category=source['category'],
+                    published_at=post['published_at']
+                )
+        else:
+            logger.warning(f"Facebook source {source['name']} is missing 'facebook_page_id'")
+    else:
+        logger.warning(f"Unknown source type: {stype} for {source['name']}")
+
 def run_scrape():
     logger.info("Starting scrape run...")
     try:
@@ -68,31 +95,7 @@ def run_scrape():
         return
 
     for source in sources:
-        if not source.get('enabled', False):
-            continue
-            
-        stype = source.get('type')
-        if stype == 'rss':
-            scrape_rss(source)
-        elif stype == 'html':
-            scrape_html(source)
-        elif stype == 'facebook':
-            page_id = source.get('facebook_page_id')
-            if page_id:
-                posts = scrape_facebook_page(page_id, max_posts=10)
-                for post in posts:
-                    insert_article(
-                        source=source['name'],
-                        url=post['url'],
-                        title=post['title'],
-                        body=post['body'],
-                        category=source['category'],
-                        published_at=post['published_at']
-                    )
-            else:
-                logger.warning(f"Facebook source {source['name']} is missing 'facebook_page_id'")
-        else:
-            logger.warning(f"Unknown source type: {stype} for {source['name']}")
+        scrape_single_source(source)
 
     logger.info("Pruning old articles (older than 72h)...")
     prune_old_articles()

@@ -77,6 +77,14 @@ def get_all_sources():
     conn.close()
     return [dict(row) for row in rows]
 
+def get_source_by_id(source_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM sources WHERE id = ?", (source_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
 def add_source(name, stype, url, category, facebook_page_id=None, enabled=True):
     conn = get_db()
     cursor = conn.cursor()
@@ -86,6 +94,7 @@ def add_source(name, stype, url, category, facebook_page_id=None, enabled=True):
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (name, stype, url, category, facebook_page_id, 1 if enabled else 0))
         conn.commit()
+        return cursor.lastrowid
     except Exception as e:
         print(f"Error inserting source: {e}")
         raise
@@ -126,6 +135,20 @@ def get_articles(window_hours=24, category=None):
     conn.close()
     
     return [dict(row) for row in rows]
+
+def clear_articles():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM articles")
+    conn.commit()
+    conn.close()
+
+def delete_articles_by_source(source_name):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM articles WHERE source = ?", (source_name,))
+    conn.commit()
+    conn.close()
 
 def prune_old_articles():
     conn = get_db()

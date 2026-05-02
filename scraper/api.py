@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import Optional
 import logging
 
-from scraper import run_scrape
+from scraper import run_scrape, scrape_single_source
 import db
 
 logging.basicConfig(level=logging.INFO)
@@ -29,7 +29,6 @@ def on_startup():
     logger.info("Starting scheduler...")
     start_scheduler()
     
-    # Check if DB is empty; if so, trigger a scrape in the background
     try:
         articles = db.get_articles(window_hours=100000)
         if not articles:
@@ -82,7 +81,7 @@ def get_sources():
 @app.post("/sources", summary="Add a new source")
 def add_source(source: SourceCreate):
     try:
-        db.add_source(
+        source_id = db.add_source(
             name=source.name,
             stype=source.type,
             url=source.url,
@@ -90,6 +89,11 @@ def add_source(source: SourceCreate):
             facebook_page_id=source.facebook_page_id,
             enabled=source.enabled
         )
+        
+        new_source_obj = db.get_source_by_id(source_id)
+        if new_source_obj and new_source_obj['enabled']:
+            threading.Thread(target=scrape_single_source, args=(new_source_obj,), daemon=True).start()
+            
         return {"status": "success", "message": "Source added successfully."}
     except Exception as e:
         logger.error(f"Failed to add source: {e}")
@@ -98,9 +102,20 @@ def add_source(source: SourceCreate):
 @app.patch("/sources/{source_id}/toggle", summary="Toggle a source's enabled status")
 def toggle_source(source_id: int, toggle: SourceToggle):
     try:
+        source_obj_before = db.get_source_by_id(source_id)
+        
         success = db.toggle_source(source_id, toggle.enabled)
         if not success:
             raise HTTPException(status_code=404, detail="Source not found")
+            
+        if source_obj_before:
+            if not toggle.enabled:
+                db.delete_articles_by_source(source_obj_before['name'])
+            else:
+                source_obj_after = db.get_source_by_id(source_id)
+                if source_obj_after:
+                    threading.Thread(target=scrape_single_source, args=(source_obj_after,), daemon=True).start()
+                    
         return {"status": "success", "message": f"Source {'enabled' if toggle.enabled else 'disabled'} successfully."}
     except HTTPException:
         raise
