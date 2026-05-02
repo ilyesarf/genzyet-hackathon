@@ -189,6 +189,15 @@
           <button @click="handleImprove" :disabled="selectedNews.length === 0" class="btn-accent" :class="{ disabled: selectedNews.length === 0 }">
             RUN AGENT {{ selectedNews.length > 0 ? `(${selectedNews.length} news items)` : "" }} →
           </button>
+          <button @click="handleUseBrief" class="btn-brief" :class="{ loading: briefLoading }">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <rect x="3" y="4" width="10" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="6" cy="8" r="1" fill="currentColor"/>
+              <circle cx="10" cy="8" r="1" fill="currentColor"/>
+              <path d="M6 2l2 2 2-2" stroke="currentColor" stroke-width="1.2" stroke-linecap="square"/>
+            </svg>
+            {{ briefLoading ? 'FETCHING BRIEF…' : 'USE BRIEF' }}
+          </button>
           <button @click="handleImprove" class="btn-outline-mono">SKIP — USE ALL NEWS</button>
         </div>
       </div>
@@ -270,6 +279,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 
 const SCRAPER_BASE = '/api/scraper';
+const ANALYST_BASE = '/api/analyst';
 const STRATEGIST_BASE = '/api/strategist';
 
 const props = defineProps({
@@ -283,6 +293,9 @@ const phase = ref('upload'); // upload | news-select | improving | result
 const improvingStep = ref(0);
 const auditResult = ref('');
 const collapsedSections = reactive({});
+const useBrief = ref(false);
+const briefLoading = ref(false);
+const cachedBrief = ref(null);
 const historyView = ref('card'); // card | list
 const selectedNews = ref([]);
 const expandedHistory = ref(null);
@@ -404,7 +417,10 @@ const handleImprove = async () => {
     formData.append('strategy_file', file.value);
     formData.append('mode', 'detail');
     
-    if (selectedNewsItems.value.length > 0) {
+    if (useBrief.value && cachedBrief.value) {
+      // Use the analyst agent's full brief directly
+      formData.append('analyst_output', JSON.stringify(cachedBrief.value));
+    } else if (selectedNewsItems.value.length > 0) {
       const analystPayload = {
         items: selectedNewsItems.value.map(n => ({
           headline: n.title,
@@ -439,6 +455,25 @@ const handleImprove = async () => {
     clearInterval(iv);
     alert('Audit failed. Ensure com_strategist is running.');
     phase.value = 'news-select';
+    useBrief.value = false;
+  }
+};
+
+const handleUseBrief = async () => {
+  briefLoading.value = true;
+  try {
+    const res = await fetch(`${ANALYST_BASE}/analyze?window=48`);
+    if (!res.ok) throw new Error(`Analyst API error: ${res.status}`);
+    const json = await res.json();
+    cachedBrief.value = json.data || { items: [], tldr: [] };
+    useBrief.value = true;
+    briefLoading.value = false;
+    // Auto-run the strategist with the fetched brief
+    handleImprove();
+  } catch (err) {
+    console.error('Failed to fetch analyst brief:', err);
+    briefLoading.value = false;
+    alert('Could not fetch analyst brief. Ensure analyst agent is running.');
   }
 };
 
@@ -460,6 +495,8 @@ const reset = () => {
   phase.value = 'upload';
   selectedNews.value = [];
   expandedHistory.value = null;
+  useBrief.value = false;
+  cachedBrief.value = null;
 };
 
 const getTagColor = (label) => {
@@ -651,6 +688,34 @@ function exportAudit() {
   font-family: var(--ff-mono);
   font-size: 11px;
   cursor: pointer;
+}
+
+.btn-brief {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-brief:hover {
+  background: var(--accent);
+  color: #000;
+}
+.btn-brief.loading {
+  border-color: var(--border2);
+  color: var(--text3);
+  cursor: wait;
+}
+.btn-brief.loading svg {
+  animation: spin 1s linear infinite;
 }
 
 .drop-zone {
