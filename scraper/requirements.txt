@@ -3,6 +3,7 @@ uvicorn==0.30.1
 feedparser==6.0.11
 requests==2.32.3
 beautifulsoup4==4.12.3
+apify-client
 
 apscheduler==3.10.4
 python-dotenv==1.0.1

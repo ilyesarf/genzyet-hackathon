@@ -7,6 +7,7 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 from db import insert_article, prune_old_articles
+from facebook_scraper import scrape_facebook_page
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -77,6 +78,21 @@ def run_scrape():
             scrape_rss(source)
         elif stype == 'html':
             scrape_html(source)
+        elif stype == 'facebook':
+            page_id = source.get('facebook_page_id')
+            if page_id:
+                posts = scrape_facebook_page(page_id, max_posts=10)
+                for post in posts:
+                    insert_article(
+                        source=source['name'],
+                        url=post['url'],
+                        title=post['title'],
+                        body=post['body'],
+                        category=source['category'],
+                        published_at=post['published_at']
+                    )
+            else:
+                logger.warning(f"Facebook source {source['name']} is missing 'facebook_page_id'")
         else:
             logger.warning(f"Unknown source type: {stype} for {source['name']}")
 

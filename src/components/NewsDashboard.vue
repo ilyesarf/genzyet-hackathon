@@ -291,7 +291,11 @@ const categories = computed(() => [
 ]);
 
 const sortedNews = computed(() => {
-  return [...articles.value].sort((a, b) => (b.urgency || 0) - (a.urgency || 0));
+  let list = [...articles.value];
+  if (category.value && category.value !== 'all') {
+    list = list.filter(a => a.cat === category.value);
+  }
+  return list.sort((a, b) => (b.urgency || 0) - (a.urgency || 0));
 });
 
 const bothVisible = computed(() => !newsCollapsed.value && !analysisCollapsed.value);
@@ -315,20 +319,18 @@ const RESULT_SUMMARY = computed(() => {
 });
 
 const RESULT_CLUSTERS = computed(() => {
-  // Group analysis items by source or cluster them by relevance
+  // Group analysis items by relevance score since it's an integer 0-100
   const items = analysisItems.value;
   if (!items.length) return [];
 
-  const highItems = items.filter(i => i.relevance_score?.toLowerCase() === 'high');
-  const medItems = items.filter(i => i.relevance_score?.toLowerCase() === 'medium');
-  const lowItems = items.filter(i => i.relevance_score?.toLowerCase() === 'low');
-  const other = items.filter(i => !['high','medium','low'].includes(i.relevance_score?.toLowerCase()));
+  const highItems = items.filter(i => i.relevance_score >= 70);
+  const medItems = items.filter(i => i.relevance_score >= 40 && i.relevance_score < 70);
+  const lowItems = items.filter(i => i.relevance_score < 40);
 
   const clusters = [];
   if (highItems.length) clusters.push({ theme: 'High Priority', urgency: 90, articles: highItems.map(i => i.headline) });
   if (medItems.length) clusters.push({ theme: 'Medium Priority', urgency: 60, articles: medItems.map(i => i.headline) });
   if (lowItems.length) clusters.push({ theme: 'Lower Priority', urgency: 30, articles: lowItems.map(i => i.headline) });
-  if (other.length) clusters.push({ theme: 'Other', urgency: 50, articles: other.map(i => i.headline) });
   return clusters;
 });
 
@@ -342,9 +344,7 @@ const RESULT_RECS = computed(() => {
 async function fetchArticles() {
   try {
     const params = new URLSearchParams({ window: timeWindow.value });
-    if (category.value && category.value !== 'all') {
-      params.append('category', category.value);
-    }
+    // Remove category filtering from backend — we fetch everything and filter frontend
     const res = await fetch(`${SCRAPER_BASE}/articles?${params}`);
     if (!res.ok) throw new Error(`Scraper returned ${res.status}`);
     const json = await res.json();
@@ -352,7 +352,7 @@ async function fetchArticles() {
 
     articles.value = raw.map((a, i) => ({
       id: i + 1,
-      cat: (a.category || '').toLowerCase(),
+      cat: 'uncategorized',
       urgency: 50 + Math.floor(Math.random() * 40), // placeholder until agent scores
       relevance: 50 + Math.floor(Math.random() * 40),
       title: a.title || 'Untitled',
@@ -424,11 +424,9 @@ async function runAnalysis() {
     stepIdx.value = Math.min(step, agentSteps.length - 1);
   }, 800);
 
-  try {
+    try {
     const params = new URLSearchParams({ window: timeWindow.value });
-    if (category.value && category.value !== 'all') {
-      params.append('category', category.value);
-    }
+    // The analyst agent shouldn't filter by category on the backend either
     const res = await fetch(`${ANALYST_BASE}/analyze?${params}`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -439,6 +437,20 @@ async function runAnalysis() {
 
     analysisItems.value = result.items || [];
     analysisTldr.value = result.tldr || [];
+
+    // Map the agent's findings back to our news feed!
+    analysisItems.value.forEach(item => {
+      const target = articles.value.find(a => a.id === item.id);
+      if (target) {
+        target.cat = item.category;
+        target.urgency = item.urgency_score;
+        target.relevance = item.relevance_score;
+        target.why_it_matters = item.why_it_matters;
+        if (item.headline && item.headline !== 'N/A') {
+          target.title = item.headline; // Optional: use the concise rewrite
+        }
+      }
+    });
 
     // Build a summary from the first few items
     if (analysisItems.value.length > 0) {

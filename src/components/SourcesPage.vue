@@ -53,23 +53,12 @@
 </template>
 
 <script setup>
-import { ref, computed, inject } from 'vue';
+import { ref, computed, inject, onMounted } from 'vue';
 
 const t = inject('t');
+const SCRAPER_BASE = '/api/scraper';
 
-const SOURCES_INIT = [
-  { id:1, name:'TechCrunch', type:'web', active:true, category:'tech', url:'techcrunch.com' },
-  { id:2, name:'Reuters', type:'web', active:true, category:'economy', url:'reuters.com' },
-  { id:3, name:'Le Monde', type:'web', active:true, category:'politics', url:'lemonde.fr' },
-  { id:4, name:'TAP', type:'web', active:true, category:'politics', url:'tap.info.tn' },
-  { id:5, name:"L'Équipe", type:'web', active:false, category:'sport', url:'lequipe.fr' },
-  { id:6, name:'Bloomberg', type:'web', active:true, category:'economy', url:'bloomberg.com' },
-  { id:7, name:'@3sg.tn', type:'social', active:true, category:'agency', url:'instagram.com/3sg.tn' },
-  { id:8, name:'@tunisnews', type:'social', active:true, category:'politics', url:'twitter.com/tunisnews' },
-  { id:9, name:'Wired', type:'web', active:false, category:'tech', url:'wired.com' },
-];
-
-const sources = ref(SOURCES_INIT);
+const sources = ref([]);
 const adding = ref(false);
 const newName = ref('');
 const newUrl = ref('');
@@ -81,10 +70,36 @@ const stats = computed(() => [
   { label: 'SOCIAL', value: sources.value.filter(s => s.type === 'social').length },
 ]);
 
+async function fetchSources() {
+  try {
+    const res = await fetch(`${SCRAPER_BASE}/sources`);
+    if (!res.ok) throw new Error(`Failed to fetch sources: ${res.status}`);
+    const json = await res.json();
+    const data = json.data || [];
+    
+    sources.value = data.map((s, idx) => ({
+      id: idx + 1,
+      name: s.name,
+      type: s.type === 'rss' || s.type === 'html' ? 'web' : 'social',
+      active: s.enabled,
+      category: s.category || 'tech',
+      url: s.url.replace(/^https?:\/\/(www\.)?/, '')
+    }));
+  } catch (err) {
+    console.error('[SourcesPage] Error fetching sources:', err);
+  }
+}
+
+onMounted(() => {
+  fetchSources();
+});
+
 function toggleSource(id) {
+  // UI only for now — no backend endpoint to save config changes yet
   sources.value = sources.value.map(s => s.id === id ? { ...s, active: !s.active } : s);
 }
 function removeSource(id) {
+  // UI only
   sources.value = sources.value.filter(s => s.id !== id);
 }
 function addSource() {

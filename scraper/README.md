@@ -31,6 +31,28 @@ This module provides the data ingestion and storage layer for the news intellige
    Review and update `sources.json`. This file contains the registry of sources to scrape. Ensure that `"enabled": true` is set for sources you wish to process. Supported source types:
    - `rss`
    - `html`
+   - `facebook`
+
+## Facebook Scraping (Apify)
+
+We use the [Apify Facebook Pages Scraper](https://apify.com/apify/facebook-pages-scraper) to fetch recent posts from Facebook sources reliably.
+
+1. **Get an API Token:**
+   Sign up at [apify.com](https://apify.com). Go to **Settings → Integrations** and copy your personal API token.
+2. **Configure Environment:**
+   Add `APIFY_API_TOKEN=your_token` to your `.env` file.
+3. **Add a Source:**
+   Find the Facebook Page ID (usually the name in the URL, e.g., `mosaiquefm` for `https://facebook.com/mosaiquefm`). Add an entry to `sources.json`:
+   ```json
+   {
+     "name": "Mosaique FM",
+     "type": "facebook",
+     "url": "https://www.facebook.com/mosaiquefm",
+     "facebook_page_id": "mosaiquefm",
+     "category": "tunisia-news",
+     "enabled": true
+   }
+   ```
 
 ## Running the Components
 

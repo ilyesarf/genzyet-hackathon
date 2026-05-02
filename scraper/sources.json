@@ -158,5 +158,53 @@
     "category": "international-news",
     "language": "fr/en",
     "enabled": true
+  },
+  {
+    "name": "Foot 24",
+    "type": "facebook",
+    "url": "https://www.facebook.com/www.foot24.tn",
+    "facebook_page_id": "www.foot24.tn",
+    "category": "tunisia-news",
+    "enabled": false
+  },
+  {
+    "name": "Lyceena",
+    "type": "facebook",
+    "url": "https://www.facebook.com/lyceena",
+    "facebook_page_id": "lyceena",
+    "category": "tunisia-news",
+    "enabled": false
+  },
+  {
+    "name": "Faccna",
+    "type": "facebook",
+    "url": "https://www.facebook.com/Faccna",
+    "facebook_page_id": "Faccna",
+    "category": "tunisia-news",
+    "enabled": false
+  },
+  {
+    "name": "La Presse Tunisie",
+    "type": "facebook",
+    "url": "https://www.facebook.com/lapresse.tunisie",
+    "facebook_page_id": "lapresse.tunisie",
+    "category": "tunisia-news",
+    "enabled": false
+  },
+  {
+    "name": "Mosaique FM",
+    "type": "facebook",
+    "url": "https://www.facebook.com/mosaiquefm",
+    "facebook_page_id": "mosaiquefm",
+    "category": "tunisia-news",
+    "enabled": false
+  },
+  {
+    "name": "Diwan FM",
+    "type": "facebook",
+    "url": "https://www.facebook.com/DiwanFM",
+    "facebook_page_id": "DiwanFM",
+    "category": "tunisia-news",
+    "enabled": false
   }
 ]

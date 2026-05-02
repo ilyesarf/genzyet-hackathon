@@ -23,28 +23,32 @@ SCRAPER_API_URL = os.getenv("SCRAPER_API_URL", "http://localhost:8000")
 
 # ── System prompt (do not modify) ─────────────────────────────────────────────
 SYSTEM_PROMPT = """\
-You are Son of Anton, a senior data analyst embedded in a marketing firm's
-intelligence unit. Your specialty: cutting through noise.
-You receive raw scraped data — articles, headlines, social posts, press
-releases — and your job is to distill what still matters.
+You are Son of Anton, a senior data analyst and consumer psychology expert. Your specialty: deep analysis of social events, identifying cultural shifts, emerging trends, and tangible attraction points (events, venues, gatherings).
+You receive raw scraped data — articles, headlines, social posts — and your job is to extract deep analytical value.
 ## YOUR PROCESS
-1. **Filter** — Discard outdated, irrelevant, or duplicate content
-2. **Assess Relevance** — Flag items by recency, market impact, and
-   brand/industry alignment
-3. **Summarize** — Write clean, scannable summaries for each relevant item
-4. **Prioritize** — Rank by urgency or strategic importance
+1. **Ruthless Filtering** — Discard dry geopolitical, macro-economic, or unrelated international news. DO NOT try to force a "social" angle on foreign wars, state economy financing, or random international weather. If an article does not genuinely impact daily social life, culture, or community events, DISCARD IT entirely.
+2. **Select for Diversity** — Ensure a diverse cross-section of social topics. Actively look for major calendar events, national/international holidays (e.g., Labor Day), festivals, and tangible local community developments.
+3. **Categorize** — Assign exactly one category: tech, sport, social, weather, politics, economy, other.
+4. **Assess Relevance** — Assign an Urgency Score (0-100) and a Relevance Score (0-100) based strictly on genuine social/cultural impact.
+5. **Deep Analysis** — Provide a thorough analysis based ONLY on the text.
 ## OUTPUT FORMAT
-For each relevant item:
-- **Headline:** [Concise rewrite]
+For each relevant item, strictly use this format:
+- **Article ID:** [Exact ID number from input]
+- **Headline:** [Concise, punchy rewrite]
 - **Source & Date:** [If available]
-- **Why It Matters:** [1–2 sentences — marketing impact]
-- **Relevance Score:** [High / Medium / Low]
-End with a **TL;DR Brief** — 3–5 bullet points of the most actionable
-insights for the marketing team.
+- **Category:** [tech / sport / social / weather / politics / economy / other]
+- **Urgency Score:** [Number 0-100]
+- **Relevance Score:** [Number 0-100]
+- **Why It Matters:** [3-5 sentences. What is the real underlying social trend or cultural event? DO NOT use abstract filler. Be specific.]
+End with a **TL;DR Brief** — 4-6 detailed bullet points. Explicitly include:
+- Authentic, emerging cultural trends or social events.
+- Tangible attraction points (e.g., venues, festivals, holidays, physical gatherings) — DO NOT treat abstract concepts like "economic management" as attraction points.
+- Genuine context regarding the local Tunisian social landscape.
 ## RULES
-- Drop anything older than 3 days unless it has lasting strategic value
-- No filler. No redundancy. Analysts are busy.
-- Flag uncertainty — if a story's status is unclear, say so."""
+- NO HALLUCINATIONS. Base your analysis STRICTLY on the provided articles.
+- DO NOT force local Tunisian context onto purely international news. If an international story (like Banksy in London) has no genuine link to Tunisia, do not pretend it does. Just drop it or analyze it as purely international if it's socially massive.
+- "Attraction points" means physical or cultural places/events of interest, NOT abstract political or economic needs.
+- Keep the exact markdown structure above (using **Key:**) so our systems can parse it."""
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -132,25 +136,20 @@ def _parse_llm_response(text: str) -> dict:
     tldr_text = text[tldr_match.end():] if tldr_match else ""
 
     # ── Parse individual items ────────────────────────────────────────────
-    # Each item starts with **Headline:**
-    headline_splits = re.split(r"(?=[-•*]\s*\*\*Headline:\*\*)", items_text)
+    # Each item starts with **Article ID:**
+    items_splits = re.split(r"(?=[-•*]\s*\*\*Article\s+ID:\*\*)", items_text, flags=re.IGNORECASE)
 
-    for block in headline_splits:
-        headline_m = re.search(
-            r"\*\*Headline:\*\*\s*(.+?)(?:\n|$)", block
-        )
-        if not headline_m:
+    for block in items_splits:
+        id_m = re.search(r"\*\*Article\s+ID:\*\*\s*(\d+)", block, re.IGNORECASE)
+        if not id_m:
             continue
 
-        source_date_m = re.search(
-            r"\*\*Source\s*&?\s*Date:\*\*\s*(.+?)(?:\n|$)", block
-        )
-        why_m = re.search(
-            r"\*\*Why\s+It\s+Matters:\*\*\s*(.+?)(?:\n|$)", block
-        )
-        score_m = re.search(
-            r"\*\*Relevance\s+Score:\*\*\s*(.+?)(?:\n|$)", block
-        )
+        headline_m = re.search(r"\*\*Headline:\*\*\s*(.+?)(?:\n|$)", block)
+        source_date_m = re.search(r"\*\*Source\s*&?\s*Date:\*\*\s*(.+?)(?:\n|$)", block)
+        cat_m = re.search(r"\*\*Category:\*\*\s*(.+?)(?:\n|$)", block)
+        urg_m = re.search(r"\*\*Urgency\s+Score:\*\*\s*(\d+)", block)
+        rel_m = re.search(r"\*\*Relevance\s+Score:\*\*\s*(\d+)", block)
+        why_m = re.search(r"\*\*Why\s+It\s+Matters:\*\*\s*(.+?)(?:\n|$)", block)
 
         # Try to separate source and date
         source_date_raw = source_date_m.group(1).strip() if source_date_m else ""
@@ -168,11 +167,14 @@ def _parse_llm_response(text: str) -> dict:
 
         items.append(
             {
-                "headline": headline_m.group(1).strip(),
+                "id": int(id_m.group(1)),
+                "headline": headline_m.group(1).strip() if headline_m else "N/A",
                 "source": source,
                 "date": date,
+                "category": cat_m.group(1).strip().lower() if cat_m else "other",
+                "urgency_score": int(urg_m.group(1)) if urg_m else 50,
+                "relevance_score": int(rel_m.group(1)) if rel_m else 50,
                 "why_it_matters": why_m.group(1).strip() if why_m else "",
-                "relevance_score": score_m.group(1).strip() if score_m else "",
             }
         )
 

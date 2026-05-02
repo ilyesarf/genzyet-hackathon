@@ -55,3 +55,19 @@ def get_articles(window: int = Query(24, description="Time window in hours"),
     except Exception as e:
         logger.error(f"Failed to get articles: {e}")
         raise HTTPException(status_code=500, detail="Internal server error while fetching articles")
+
+import os
+import json
+
+@app.get("/sources", summary="Get configured sources")
+def get_sources():
+    sources_file = os.path.join(os.path.dirname(__file__), 'sources.json')
+    try:
+        if os.path.exists(sources_file):
+            with open(sources_file, 'r') as f:
+                sources = json.load(f)
+            return {"status": "success", "data": sources}
+        return {"status": "success", "data": []}
+    except Exception as e:
+        logger.error(f"Failed to read sources.json: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error while fetching sources")
