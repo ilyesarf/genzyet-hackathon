@@ -18,6 +18,37 @@
     <div class="strategy-content">
       <!-- ── UPLOAD PHASE ── -->
       <div v-if="phase === 'upload'" class="upload-phase">
+        <!-- Strategic Context Fields -->
+        <div class="context-fields">
+          <div class="context-label">STRATEGIC CONTEXT</div>
+          <div class="field-grid">
+            <div class="field-item">
+              <label>BRAND NAME</label>
+              <input v-model="brandName" placeholder="e.g. Khaberni" class="ctx-input" />
+            </div>
+            <div class="field-item">
+              <label>SLOGAN</label>
+              <input v-model="slogan" placeholder="Brand tagline" class="ctx-input" />
+            </div>
+            <div class="field-item">
+              <label>BRAND DESCRIPTION</label>
+              <textarea v-model="brandDesc" placeholder="What is the brand about?" class="ctx-textarea"></textarea>
+            </div>
+            <div class="field-item">
+              <label>REASON OF EXISTENCE (RAISON D'ÊTRE)</label>
+              <textarea v-model="raisonDetre" placeholder="Why does this brand exist?" class="ctx-textarea"></textarea>
+            </div>
+            <div class="field-item">
+              <label>PRODUCT / CAMPAIGN</label>
+              <input v-model="productName" placeholder="e.g. Summer Launch" class="ctx-input" />
+            </div>
+            <div class="field-item">
+              <label>PRODUCT DESCRIPTION</label>
+              <textarea v-model="productDesc" placeholder="Details about the product/campaign..." class="ctx-textarea"></textarea>
+            </div>
+          </div>
+        </div>
+
         <!-- Drop zone -->
         <div
           class="drop-zone"
@@ -47,10 +78,10 @@
                 <rect x="10" y="22" width="12" height="1.5" fill="var(--text3)"/>
               </svg>
             </div>
-            <div class="drop-text">{{ t.drop_ppt }}</div>
-            <div class="file-types">.PPTX · .PPT · .PDF</div>
+            <div class="drop-text">{{ t.drop_file }}</div>
+            <div class="file-types">.PPTX · .PDF · .DOCX · .TXT</div>
           </div>
-          <input type="file" ref="fileInput" @change="handleFileChange" style="display: none" accept=".pptx,.ppt,.pdf" />
+          <input type="file" ref="fileInput" @change="handleFileChange" style="display: none" accept=".pptx,.ppt,.pdf,.docx,.doc,.txt" />
         </div>
 
         <button v-if="file" @click="phase = 'news-select'" class="btn-accent large">
@@ -77,13 +108,20 @@
           <!-- CARD VIEW -->
           <div v-if="historyView === 'card'" class="history-grid">
             <div
-              v-for="h in HISTORY_DATA"
+              v-for="h in historyItems"
               :key="h.id"
               class="history-card"
               :class="{ expanded: expandedHistory === h.id }"
               @click="expandedHistory = expandedHistory === h.id ? null : h.id"
             >
-              <div class="card-icon"><PptIconSmall /></div>
+              <div class="card-icon">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <rect x="3" y="2" width="14" height="16" rx="1" stroke="var(--text3)" stroke-width="1.2"/>
+                  <rect x="6" y="5" width="8" height="5" stroke="var(--accent)" stroke-width="1"/>
+                  <rect x="6" y="12" width="5" height="1" fill="var(--text3)"/>
+                  <rect x="6" y="14" width="8" height="1" fill="var(--text3)"/>
+                </svg>
+              </div>
               <div class="card-title">{{ h.name }}</div>
               <div class="card-date">{{ h.date }}</div>
               <div class="card-improvements">{{ h.improvements }} improvements</div>
@@ -104,7 +142,7 @@
               <span>NEWS USED</span>
             </div>
             <div
-              v-for="h in HISTORY_DATA"
+              v-for="h in historyItems"
               :key="h.id"
               class="list-item-wrapper"
               @click="expandedHistory = expandedHistory === h.id ? null : h.id"
@@ -133,7 +171,12 @@
       <!-- ── NEWS SELECTION PHASE ── -->
       <div v-if="phase === 'news-select'" class="news-select-phase">
         <div class="file-status">
-          <PptIconSmall />
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="2" width="14" height="16" rx="1" stroke="var(--text3)" stroke-width="1.2"/>
+            <rect x="6" y="5" width="8" height="5" stroke="var(--accent)" stroke-width="1"/>
+            <rect x="6" y="12" width="5" height="1" fill="var(--text3)"/>
+            <rect x="6" y="14" width="8" height="1" fill="var(--text3)"/>
+          </svg>
           <div>
             <div class="status-filename">{{ file?.name }}</div>
             <div class="status-label">LOADED · READY FOR ENRICHMENT</div>
@@ -220,7 +263,7 @@
         <div class="agent-steps">
           <div v-for="(step, i) in agentSteps" :key="i" class="step-row">
             <div class="step-dot" :class="{ completed: i < improvingStep, active: i === improvingStep }"></div>
-            <span class="step-text" :class="{ muted: i > improvingStep }">{{ step }}</span>
+            <span :id="'step-text-' + i" class="step-text" :class="{ muted: i > improvingStep }">{{ i < improvingStep ? step : (i === improvingStep ? '' : step) }}</span>
             <span v-if="i < improvingStep" class="step-check">✓</span>
           </div>
         </div>
@@ -280,7 +323,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
+import { useAnimation } from '@/composables/useAnimation';
+import { useNewsLogic } from '@/composables/useNewsLogic';
+import { marked } from 'marked';
+
+const { entrance, staggerList, magneticHover, typewriter, gsap } = useAnimation();
+const { autoCategorize, calculateScores } = useNewsLogic();
 
 const SCRAPER_BASE = '/api/scraper';
 const ANALYST_BASE = '/api/analyst';
@@ -305,20 +354,21 @@ const selectedNews = ref([]);
 const expandedHistory = ref(null);
 const fileInput = ref(null);
 
-const typeColors = { 
-  REWRITE: "var(--accent)", 
-  ADD: "var(--green)", 
-  REFINE: "var(--blue)", 
-  INSERT: "oklch(65% 0.15 290)" 
-};
+// Context fields
+const brandName = ref('');
+const slogan = ref('');
+const brandDesc = ref('');
+const raisonDetre = ref('');
+const productName = ref('');
+const productDesc = ref('');
 
 const agentSteps = [
-  "Reading your PowerPoint…",
-  "Extracting strategy objectives…",
+  "Reading your strategy file…",
+  "Extracting objectives & context…",
   "Querying selected news items…",
   "Matching communication frameworks (RAG)…",
   "Generating targeted improvements…",
-  "Formatting output…",
+  "Finalizing audit output…",
 ];
 
 const CAT_COLORS = { 
@@ -357,16 +407,21 @@ async function fetchNews() {
     const json = await res.json();
     const raw = json.data || [];
 
-    NEWS_DATA.value = raw.map((a, i) => ({
-      id: i + 1,
-      cat: (a.category || '').toLowerCase(),
-      urgency: 50 + Math.floor(Math.random() * 40),
-      relevance: 50 + Math.floor(Math.random() * 40),
-      title: a.title || 'Untitled',
-      source: a.source || 'Unknown',
-      time: formatRelativeTime(a.published_at),
-      tag: null,
-    }));
+    NEWS_DATA.value = raw.map((a, i) => {
+      const initialCat = a.category ? a.category.toLowerCase() : autoCategorize(a.title, a.body);
+      const scores = calculateScores(a.title, a.body, a.published_at);
+      
+      return {
+        id: i + 1,
+        cat: initialCat,
+        urgency: scores.urgency,
+        relevance: scores.relevance,
+        title: a.title || 'Untitled',
+        source: a.source || 'Unknown',
+        time: formatRelativeTime(a.published_at),
+        tag: scores.tag,
+      };
+    });
   } catch (err) {
     console.error('[IntelligencePage] Failed to fetch news:', err);
   }
@@ -374,15 +429,87 @@ async function fetchNews() {
 
 onMounted(() => {
   fetchNews();
+  fetchHistory();
+  
+  // Initial entrance animations
+  entrance('.context-fields', { delay: 0.2 });
+  entrance('.drop-zone', { delay: 0.4 });
+  entrance('.history-section', { delay: 0.6 });
+
+  // Magnetic buttons
+  setTimeout(() => {
+    const btns = document.querySelectorAll('.btn-accent, .btn-brief, .btn-reuse');
+    btns.forEach(b => magneticHover(b, 0.15));
+  }, 1000);
+
+  // Load persisted context
+  const saved = localStorage.getItem('khaberni_strategy_ctx');
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      brandName.value = data.brandName || '';
+      slogan.value = data.slogan || '';
+      brandDesc.value = data.brandDesc || '';
+      raisonDetre.value = data.raisonDetre || '';
+      productName.value = data.productName || '';
+      productDesc.value = data.productDesc || '';
+    } catch (e) {
+      console.error('Failed to parse saved strategy context', e);
+    }
+  }
 });
 
-const HISTORY_DATA = [
-  { id: 1, name: "Q2 Brand Awareness Campaign", file: "Q2_Brand_2026.pptx", date: "Apr 28, 2026", newsUsed: ["Meta AI ad suite", "IMF growth revision"], improvements: 4, status: "done" },
-  { id: 2, name: "Ramadan Social Media Push", file: "Ramadan_Strategy.pptx", date: "Apr 21, 2026", newsUsed: ["Gen Z news habits", "Ramadan brand moments"], improvements: 3, status: "done" },
-  { id: 3, name: "Client Crisis Comms Draft", file: "Crisis_Comms_v2.pptx", date: "Apr 14, 2026", newsUsed: ["Tunisia dinar stabilises", "MENA governance summit"], improvements: 5, status: "done" },
-  { id: 4, name: "Tech Client Launch — May", file: "TechLaunch_May.pptx", date: "Apr 10, 2026", newsUsed: ["OpenAI enterprise API", "EU digital markets vote"], improvements: 2, status: "done" },
-  { id: 5, name: "Annual PR Strategy 2026", file: "Annual_PR_2026.pptx", date: "Mar 30, 2026", newsUsed: ["Champions League preview", "Bloomberg Gen Z article"], improvements: 6, status: "done" },
-];
+// Save context on change
+watch([brandName, slogan, brandDesc, raisonDetre, productName, productDesc], () => {
+  const data = {
+    brandName: brandName.value,
+    slogan: slogan.value,
+    brandDesc: brandDesc.value,
+    raisonDetre: raisonDetre.value,
+    productName: productName.value,
+    productDesc: productDesc.value
+  };
+  localStorage.setItem('khaberni_strategy_ctx', JSON.stringify(data));
+}, { deep: true });
+
+const historyItems = ref([]);
+
+const fetchHistory = async () => {
+  try {
+    const res = await fetch(`${STRATEGIST_BASE}/history`);
+    if (!res.ok) return;
+    const json = await res.json();
+    historyItems.value = (json.data || []).map(h => ({
+      ...h,
+      newsUsed: h.news_used ?? [],
+    }));
+  } catch (err) {
+    console.error('Failed to fetch strategy history:', err);
+  }
+};
+
+const saveToHistory = async (auditData, analystData, filename) => {
+  const newsUsed = analystData?.tldr?.length
+    ? analystData.tldr.slice(0, 5)
+    : (analystData?.items || []).slice(0, 5).map(i => i.headline || i.title || '');
+
+  const improvements = Array.isArray(auditData?.recommendations)
+    ? auditData.recommendations.length
+    : 0;
+
+  const name = filename.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ');
+
+  try {
+    await fetch(`${STRATEGIST_BASE}/history`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, file: filename, news_used: newsUsed, improvements }),
+    });
+    await fetchHistory();
+  } catch (err) {
+    console.error('Failed to save history:', err);
+  }
+};
 
 
 
@@ -412,19 +539,37 @@ const handleImprove = async () => {
   improvingStep.value = 0;
   auditResult.value = '';
   
-  let step = 0;
-  const iv = setInterval(() => {
-    step++;
-    improvingStep.value = Math.min(step, agentSteps.length - 2);
-  }, 700);
+  // Run typewriter for first step
+  nextTick(() => {
+    typewriter(`#step-text-0`, agentSteps[0]);
+  });
+
+  const runSteps = async () => {
+    for (let i = 0; i < agentSteps.length - 1; i++) {
+      improvingStep.value = i;
+      await new Promise(r => setTimeout(r, 1200));
+      if (i + 1 < agentSteps.length) {
+        typewriter(`#step-text-${i+1}`, agentSteps[i+1]);
+      }
+    }
+  };
+  
+  const stepPromise = runSteps();
 
   try {
     const formData = new FormData();
     formData.append('strategy_file', file.value);
     formData.append('mode', 'detail');
     
+    // Add strategic context
+    formData.append('brand_name', brandName.value);
+    formData.append('slogan', slogan.value);
+    formData.append('brand_desc', brandDesc.value);
+    formData.append('raison_detre', raisonDetre.value);
+    formData.append('product_name', productName.value);
+    formData.append('product_desc', productDesc.value);
+    
     if (useBrief.value && cachedBrief.value) {
-      // Use the analyst agent's full brief directly
       formData.append('analyst_output', JSON.stringify(cachedBrief.value));
     } else if (selectedNewsItems.value.length > 0) {
       const analystPayload = {
@@ -450,15 +595,19 @@ const handleImprove = async () => {
     const json = await res.json();
     auditResult.value = json.data;
 
-    clearInterval(iv);
+    const usedAnalyst = (useBrief.value && cachedBrief.value)
+      ? cachedBrief.value
+      : { tldr: selectedNewsItems.value.slice(0, 5).map(n => n.title) };
+    saveToHistory(json.data, usedAnalyst, file.value.name);
+
+    await stepPromise;
     improvingStep.value = agentSteps.length - 1;
     setTimeout(() => {
       phase.value = 'result';
-    }, 400);
+    }, 600);
 
   } catch (err) {
     console.error('Audit failed:', err);
-    clearInterval(iv);
     alert('Audit failed. Ensure com_strategist is running.');
     phase.value = 'news-select';
     useBrief.value = false;
@@ -474,7 +623,6 @@ const handleUseBrief = async () => {
     cachedBrief.value = json.data || { items: [], tldr: [] };
     useBrief.value = true;
     briefLoading.value = false;
-    // Auto-run the strategist with the fetched brief
     handleImprove();
   } catch (err) {
     console.error('Failed to fetch analyst brief:', err);
@@ -503,12 +651,37 @@ const reset = () => {
   expandedHistory.value = null;
   useBrief.value = false;
   cachedBrief.value = null;
+  
+  brandName.value = '';
+  slogan.value = '';
+  brandDesc.value = '';
+  raisonDetre.value = '';
+  productName.value = '';
+  productDesc.value = '';
+
+  nextTick(() => {
+    entrance('.context-fields, .drop-zone, .history-section', { delay: 0.1 });
+  });
 };
 
 const getTagColor = (label) => {
   const colors = { BREAKING: "var(--red)", ALERT: "var(--accent)", HOT: "var(--green)" };
   return colors[label] || "var(--border2)";
 };
+
+// Phase watcher for animations
+watch(phase, (newPhase) => {
+  if (newPhase === 'result') {
+    nextTick(() => {
+      entrance('.audit-meta, .audit-section', { stagger: 0.12, y: 30, duration: 0.8 });
+    });
+  } else if (newPhase === 'news-select') {
+    nextTick(() => {
+      entrance('.file-status, .quick-actions, .news-selection', { stagger: 0.1, duration: 0.6 });
+      staggerList('.news-item', { delay: 0.3 });
+    });
+  }
+});
 
 // ── Audit result computed fields ──
 const auditMode = computed(() => {
@@ -549,59 +722,10 @@ function toggleSection(key) {
 // ── Lightweight markdown → HTML ──
 function renderMarkdown(md) {
   if (!md) return '';
-  let html = md
-    // Escape HTML
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    // Horizontal rules
-    .replace(/^---+$/gm, '<hr>')
-    // Headers (### before ## before #)
-    .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    // Bold + italic
-    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-    // Bold
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    // Italic
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // Inline code
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    // Unordered list items
-    .replace(/^[*\-•]\s+(.+)$/gm, '<li>$1</li>')
-    // Numbered list items
-    .replace(/^\d+\.\s+(.+)$/gm, '<li class="ol">$1</li>')
-    // Tables: header row
-    .replace(/^\|(.+)\|$/gm, (match, content) => {
-      const cells = content.split('|').map(c => c.trim());
-      // Skip separator rows like |---|---|
-      if (cells.every(c => /^[-:]+$/.test(c))) return '';
-      const cellHtml = cells.map(c => `<td>${c}</td>`).join('');
-      return `<tr>${cellHtml}</tr>`;
-    })
-    // Paragraphs: double newline
-    .replace(/\n\n+/g, '</p><p>')
-    // Single newlines within paragraphs
-    .replace(/\n/g, '<br>');
-
-  // Wrap consecutive <li> in <ul>
-  html = html.replace(/((?:<li>.*?<\/li>(?:<br>)?)+)/g, '<ul>$1</ul>');
-  html = html.replace(/((?:<li class="ol">.*?<\/li>(?:<br>)?)+)/g, '<ol>$1</ol>');
-  // Wrap consecutive <tr> in <table>
-  html = html.replace(/((?:<tr>.*?<\/tr>(?:<br>)?)+)/g, '<table>$1</table>');
-  // Clean up stray <br> inside lists/tables
-  html = html.replace(/<\/li><br>/g, '</li>');
-  html = html.replace(/<\/tr><br>/g, '</tr>');
-  // Remove empty paragraphs and <hr> leftovers
-  html = html.replace(/<p><\/p>/g, '');
-  html = html.replace(/<br><hr>/g, '<hr>');
-
-  return `<div class="md-rendered"><p>${html}</p></div>`;
+  const html = marked.parse(md);
+  return `<div class="md-rendered">${html}</div>`;
 }
 
-// ── Export audit as text file ──
 function exportAudit() {
   const text = auditRaw.value || 'No audit data.';
   const blob = new Blob([text], { type: 'text/markdown' });
@@ -634,9 +758,10 @@ function exportAudit() {
 
 .header-title {
   font-family: var(--ff-head);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: var(--text-lg);
+  font-weight: 800;
+  letter-spacing: var(--letter-spacing-display);
+  text-transform: uppercase;
 }
 
 .header-actions {
@@ -661,7 +786,9 @@ function exportAudit() {
   font-weight: 700;
   letter-spacing: 0.05em;
   cursor: pointer;
+  transition: transform 0.2s;
 }
+.btn-accent:active { transform: scale(0.95); }
 
 .btn-accent.large {
   padding: 11px 32px;
@@ -696,6 +823,56 @@ function exportAudit() {
   cursor: pointer;
 }
 
+/* ── Context Fields ── */
+.context-fields {
+  margin-bottom: 24px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+}
+.context-label {
+  font-family: var(--ff-mono);
+  font-size: var(--text-xs);
+  color: var(--text3);
+  letter-spacing: 0.15em;
+  margin-bottom: 20px;
+}
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.field-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.field-item label {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  color: var(--text2);
+  letter-spacing: 0.1em;
+}
+.ctx-input, .ctx-textarea {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  padding: 10px 14px;
+  font-family: var(--ff-body);
+  font-size: var(--text-sm);
+  transition: all 0.2s ease;
+}
+.ctx-input:focus, .ctx-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: rgba(255, 170, 0, 0.02);
+  box-shadow: 0 0 15px rgba(255, 170, 0, 0.05);
+}
+.ctx-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
 .quick-actions {
   display: flex;
   align-items: center;
@@ -724,27 +901,20 @@ function exportAudit() {
   background: var(--accent);
   color: #000;
 }
-.btn-brief.loading {
-  border-color: var(--border2);
-  color: var(--text3);
-  cursor: wait;
-}
-.btn-brief.loading svg {
-  animation: spin 1s linear infinite;
-}
 
 .drop-zone {
   border: 1px dashed var(--border2);
-  background: var(--bg2);
-  padding: 36px 32px;
+  background: rgba(255, 255, 255, 0.01);
+  padding: 48px 32px;
   cursor: pointer;
   text-align: center;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .drop-zone.dragging {
   border-color: var(--accent);
   background: rgba(255, 170, 0, 0.04);
+  transform: scale(1.01);
 }
 
 .drop-zone.hasFile {
@@ -752,802 +922,311 @@ function exportAudit() {
   background: rgba(0, 200, 100, 0.03);
 }
 
-.file-ready {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.file-name {
-  font-family: var(--ff-body);
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text);
-}
-
-.file-meta {
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  color: var(--green);
-}
-
-.file-hint {
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--text3);
-  margin-top: 4px;
-}
-
-.drop-hint {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.icon-wrapper {
-  width: 48px;
-  height: 48px;
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .drop-text {
   font-family: var(--ff-head);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--text-md);
+  font-weight: 700;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 
-.file-types {
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  color: var(--text3);
-}
-
+/* History */
 .history-section {
-  margin-top: 28px;
+  margin-top: 32px;
 }
-
-.history-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.history-label {
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--text3);
-  letter-spacing: 0.1em;
-}
-
-.view-toggle {
-  display: flex;
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-
-.view-toggle button {
-  padding: 4px 10px;
-  background: transparent;
-  border: none;
-  border-right: 1px solid var(--border);
-  color: var(--text3);
-  font-family: var(--ff-mono);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.view-toggle button:last-child {
-  border-right: none;
-}
-
-.view-toggle button.active {
-  background: var(--bg3);
-  color: var(--text);
-}
-
-.history-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1px;
-}
-
 .history-card {
-  background: var(--bg2);
+  background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border);
-  padding: 18px;
+  padding: 20px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
+.history-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border2);
+  transform: translateY(-2px);
+}
 .history-card.expanded {
-  background: var(--bg3);
+  background: rgba(255, 255, 255, 0.06);
   border-color: var(--accent);
 }
 
-.card-icon {
-  margin-bottom: 12px;
+/* Improving Phase */
+.improving-phase {
+  max-width: 520px;
+  margin: 40px auto;
 }
-
-.card-title {
-  font-family: var(--ff-head);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.35;
-  margin-bottom: 8px;
-}
-
-.card-date {
+.agent-title {
   font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--text3);
-  margin-bottom: 6px;
-}
-
-.card-improvements {
-  font-family: var(--ff-mono);
-  font-size: 9px;
+  font-size: var(--text-xs);
   color: var(--accent);
+  letter-spacing: 0.15em;
+  margin-bottom: 32px;
+  text-align: center;
 }
-
-.card-details {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-
-.details-label {
-  font-family: var(--ff-mono);
-  font-size: 8px;
-  color: var(--text3);
-  letter-spacing: 0.08em;
-  margin-bottom: 6px;
-}
-
-.details-item {
-  font-family: var(--ff-body);
-  font-size: 10px;
-  color: var(--text2);
-  margin-bottom: 3px;
-}
-
-.btn-reuse {
-  margin-top: 10px;
-  padding: 5px 12px;
-  background: var(--accent);
-  border: none;
-  color: #000;
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  cursor: pointer;
-  letter-spacing: 0.06em;
-}
-
-.history-list {
+.agent-steps {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
+  gap: 16px;
 }
-
-.list-header {
-  display: grid;
-  grid-template-columns: 1fr 120px 80px 100px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg3);
-}
-
-.list-header span {
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--text3);
-  letter-spacing: 0.08em;
-}
-
-.list-item {
-  display: grid;
-  grid-template-columns: 1fr 120px 80px 100px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  align-items: center;
-  transition: background 0.1s;
-}
-
-.list-item.expanded {
-  background: var(--bg3);
-}
-
-.item-name {
-  font-family: var(--ff-body);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text);
-}
-
-.item-file {
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--text3);
-  margin-top: 2px;
-}
-
-.item-date {
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  color: var(--text2);
-}
-
-.item-improvements {
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  color: var(--accent);
-}
-
-.item-news-count {
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--text3);
-}
-
-.list-details {
-  padding: 12px 16px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg3);
-}
-
-.news-chips {
+.step-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 16px;
+}
+.step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border2);
+  transition: all 0.3s;
+}
+.step-dot.active { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+.step-dot.completed { background: var(--green); }
+.step-text {
+  font-family: var(--ff-mono);
+  font-size: var(--text-sm);
+  color: var(--text);
+  min-height: 1.5em;
+}
+
+/* Result Phase */
+.result-phase {
+  will-change: transform, opacity;
+}
+.audit-meta {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(10px);
+}
+.audit-section {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+.audit-section:hover {
+  border-color: var(--border2);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateX(4px);
+}
+.section-title {
+  font-family: var(--ff-head);
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.btn-export {
+  padding: 10px 24px;
+  background: transparent;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--ff-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  transition: all 0.2s;
+}
+.btn-export:hover {
+  background: var(--accent);
+  color: #000;
+  transform: translateY(-2px);
+}
+
+/* ── Cross-Ref List ── */
+.cross-ref {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.cross-ref-label {
+  font-family: var(--ff-mono);
+  font-size: var(--text-xs);
+  color: var(--text3);
+  letter-spacing: 0.1em;
   margin-bottom: 12px;
 }
 
-.news-chip {
-  font-family: var(--ff-body);
-  font-size: 10px;
-  color: var(--text2);
-  padding: 3px 8px;
-  border: 1px solid var(--border2);
+.cross-ref-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-/* News Selection Phase */
-.file-status {
-  background: var(--bg2);
+.cross-ref-item {
+  font-family: var(--ff-body);
+  font-size: var(--text-sm);
+  color: var(--text2);
+}
+
+/* ── Markdown Rendered Tables ── */
+.md-rendered table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-family: var(--ff-body);
+  font-size: var(--text-sm);
+}
+
+.md-rendered th, .md-rendered td {
   border: 1px solid var(--border);
   padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  text-align: left;
 }
 
-.status-filename {
-  font-family: var(--ff-body);
-  font-size: 13px;
-  font-weight: 500;
+.md-rendered th {
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 700;
   color: var(--text);
 }
 
-.status-label {
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--text3);
-  margin-top: 2px;
+.md-rendered td {
+  color: var(--text2);
 }
 
+.md-rendered tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+/* ── News Selection ── */
 .news-selection {
-  margin-top: 20px;
+  margin-top: 24px;
 }
 
 .selection-label {
   font-family: var(--ff-mono);
-  font-size: 9px;
+  font-size: var(--text-xs);
   color: var(--text3);
   letter-spacing: 0.1em;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
 .selection-hint {
   font-family: var(--ff-body);
-  font-size: 11px;
-  color: var(--text3);
+  font-size: var(--text-sm);
+  color: var(--text2);
   margin-bottom: 16px;
 }
 
-.accent-text {
-  color: var(--accent);
-}
+.accent-text { color: var(--accent); }
 
 .news-list {
   display: flex;
   flex-direction: column;
+  gap: 1px;
 }
 
 .news-item {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 13px 16px;
-  border-bottom: 1px solid var(--border);
+  gap: 16px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
   cursor: pointer;
-  transition: background 0.12s;
+  transition: all 0.2s ease;
+}
+
+.news-item:hover {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .news-item.selected {
   background: rgba(255, 170, 0, 0.05);
+  border-color: var(--accent);
 }
 
 .checkbox {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border: 1.5px solid var(--border2);
   flex-shrink: 0;
-  margin-top: 2px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.12s;
+  transition: all 0.2s ease;
+  margin-top: 2px;
 }
 
 .checkbox.active {
-  border-color: var(--accent);
   background: var(--accent);
-}
-
-.checkbox span {
-  font-size: 9px;
+  border-color: var(--accent);
   color: #000;
-  line-height: 1;
-  font-weight: 700;
 }
 
 .cat-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  margin-top: 5px;
+  margin-top: 8px;
   flex-shrink: 0;
 }
 
-.news-main {
-  flex: 1;
-  min-width: 0;
-}
+.news-main { flex: 1; min-width: 0; }
 
 .news-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
 .tag-pill {
   font-family: var(--ff-mono);
   font-size: 9px;
-  font-weight: 500;
   padding: 2px 6px;
   border: 1px solid;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
+  font-weight: 600;
 }
 
 .news-source {
   font-family: var(--ff-mono);
-  font-size: 9px;
+  font-size: 10px;
   color: var(--text3);
 }
 
 .news-title {
-  font-family: var(--ff-body);
-  font-size: 12px;
-  font-weight: 500;
+  font-family: var(--ff-head);
+  font-size: var(--text-md);
+  font-weight: 700;
   color: var(--text);
-  line-height: 1.4;
+  line-height: 1.3;
 }
 
 .news-scores {
   display: flex;
-  gap: 14px;
+  gap: 16px;
   flex-shrink: 0;
 }
 
-.score-block {
-  text-align: right;
-}
+.score-block { text-align: right; }
 
 .score-label {
   font-family: var(--ff-mono);
-  font-size: 8px;
+  font-size: 9px;
   color: var(--text3);
-  margin-bottom: 2px;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
 }
 
 .score-value {
   font-family: var(--ff-mono);
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text2);
 }
 
-.score-value.high {
-  color: var(--red);
-}
+.score-value.high { color: var(--red); }
 
 .action-footer {
-  margin-top: 20px;
+  margin-top: 32px;
   display: flex;
-  gap: 10px;
-  align-items: center;
+  justify-content: flex-end;
 }
 
-/* Improving Phase */
-.improving-phase {
-  max-width: 480px;
-}
-
-.agent-title {
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  color: var(--accent);
-  letter-spacing: 0.1em;
-  margin-bottom: 20px;
-}
-
-.cross-ref {
-  margin-bottom: 20px;
-  padding: 10px 14px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-}
-
-.cross-ref-label {
-  font-family: var(--ff-mono);
-  font-size: 8px;
-  color: var(--text3);
-  letter-spacing: 0.08em;
-  margin-bottom: 8px;
-}
-
-.cross-ref-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.cross-ref-item {
-  font-family: var(--ff-body);
-  font-size: 10px;
-  color: var(--text2);
-  padding: 2px 8px;
-  border: 1px solid var(--border2);
-}
-
-.agent-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.step-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.step-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--border2);
-}
-
-.step-dot.completed {
-  background: var(--green);
-}
-
-.step-dot.active {
-  background: var(--accent);
-}
-
-.step-text {
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  color: var(--text);
-}
-
-.step-text.muted {
-  color: var(--text3);
-}
-
-.step-check {
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--green);
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   RESULT PHASE — Straton Audit Output
-   ═══════════════════════════════════════════════════════════════════ */
-
-.result-phase {
-  animation: fadeIn 0.3s ease-out;
-}
-@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-.result-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-.banner-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 6px var(--green);
-  animation: pulse-dot 2s ease-in-out infinite;
-}
-@keyframes pulse-dot {
-  0%, 100% { box-shadow: 0 0 4px var(--green); }
-  50% { box-shadow: 0 0 12px var(--green); }
-}
-.banner-text {
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  color: var(--green);
-  letter-spacing: 0.08em;
-}
-.banner-sub {
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--text3);
-}
-
-/* ── Audit Meta ── */
-.audit-meta {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 14px 20px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  margin-bottom: 16px;
-}
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.meta-label {
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--text3);
-  letter-spacing: 0.1em;
-}
-.meta-badge {
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border: 1px solid;
-  letter-spacing: 0.06em;
-}
-.meta-badge.detail {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.meta-badge.basic {
-  border-color: var(--blue);
-  color: var(--blue);
-}
-.meta-gap {
-  font-family: var(--ff-body);
-  font-size: 12px;
-  color: var(--text);
-  font-weight: 500;
-}
-
-/* ── Section Cards ── */
-.audit-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.audit-section {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  transition: all 0.2s;
-}
-.audit-section:hover {
-  border-color: var(--border2);
-}
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 20px;
-  cursor: pointer;
-  user-select: none;
-}
-.section-tag {
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  font-weight: 700;
-  padding: 3px 10px;
-  letter-spacing: 0.06em;
-  flex-shrink: 0;
-}
-.section-tag.d1 { background: rgba(255,170,0,0.12); color: var(--accent); }
-.section-tag.d2 { background: rgba(255,80,80,0.12); color: var(--red); }
-.section-tag.d3 { background: rgba(80,180,255,0.12); color: var(--blue); }
-.section-tag.d4 { background: rgba(0,200,100,0.12); color: var(--green); }
-
-.section-title {
-  font-family: var(--ff-head);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  flex: 1;
-}
-.section-toggle {
-  font-size: 12px;
-  color: var(--text3);
-  flex-shrink: 0;
-}
-
-.section-body {
-  padding: 0 20px 20px;
-  border-top: 1px solid var(--border);
-  padding-top: 16px;
-}
-
-/* ── Raw fallback ── */
-.audit-raw {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  padding: 20px;
-  margin-bottom: 8px;
-}
-
-/* ── Markdown rendered content ── */
-.section-body :deep(.md-rendered) {
-  font-family: var(--ff-body);
-  font-size: 13px;
-  line-height: 1.8;
-  color: var(--text2);
-}
-
-.section-body :deep(h1),
-.section-body :deep(h2),
-.section-body :deep(h3),
-.section-body :deep(h4) {
-  font-family: var(--ff-head);
-  color: var(--text);
-  margin-top: 16px;
-  margin-bottom: 8px;
-  line-height: 1.3;
-}
-.section-body :deep(h1) { font-size: 18px; font-weight: 700; }
-.section-body :deep(h2) { font-size: 15px; font-weight: 700; }
-.section-body :deep(h3) { font-size: 13px; font-weight: 700; letter-spacing: 0.01em; }
-.section-body :deep(h4) { font-size: 12px; font-weight: 600; color: var(--text2); }
-
-.section-body :deep(strong) {
-  color: var(--text);
-  font-weight: 600;
-}
-.section-body :deep(em) {
-  color: var(--accent);
-  font-style: italic;
-}
-.section-body :deep(code) {
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  background: var(--bg3);
-  padding: 2px 6px;
-  border: 1px solid var(--border);
-  color: var(--accent);
-}
-
-.section-body :deep(ul),
-.section-body :deep(ol) {
-  padding-left: 0;
-  margin: 8px 0;
-  list-style: none;
-}
-.section-body :deep(li) {
-  position: relative;
-  padding: 6px 0 6px 20px;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  line-height: 1.7;
-}
-.section-body :deep(li):last-child {
-  border-bottom: none;
-}
-.section-body :deep(li)::before {
-  content: '→';
-  position: absolute;
-  left: 0;
-  color: var(--accent);
-  font-family: var(--ff-mono);
-  font-size: 11px;
-}
-.section-body :deep(li.ol)::before {
-  content: counter(li-counter);
-  counter-increment: li-counter;
-  color: var(--text3);
-  font-size: 10px;
-}
-.section-body :deep(ol) {
-  counter-reset: li-counter;
-}
-
-.section-body :deep(table) {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 12px 0;
-  font-size: 11px;
-}
-.section-body :deep(tr) {
-  border-bottom: 1px solid var(--border);
-}
-.section-body :deep(tr:first-child) {
-  border-bottom: 2px solid var(--border2);
-}
-.section-body :deep(tr:first-child td) {
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--text3);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.section-body :deep(td) {
-  padding: 8px 12px;
-  font-family: var(--ff-body);
-  color: var(--text2);
-  line-height: 1.5;
-}
-.section-body :deep(td:first-child) {
-  font-weight: 500;
-  color: var(--text);
-}
-
-.section-body :deep(hr) {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin: 16px 0;
-}
-
-.section-body :deep(p) {
-  margin: 0;
-}
-
-/* ── Result Actions ── */
-.result-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 20px;
-}
-.btn-export {
-  padding: 9px 20px;
-  background: transparent;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  font-family: var(--ff-mono);
-  font-size: 11px;
-  cursor: pointer;
-  letter-spacing: 0.06em;
-  transition: all 0.15s;
-}
-.btn-export:hover {
-  background: var(--accent);
-  color: #000;
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

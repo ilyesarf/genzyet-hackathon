@@ -1,6 +1,13 @@
 <template>
   <div class="app-shell">
-    <aside class="sidebar">
+    <!-- Ambient background with floating orbs -->
+    <div class="ambient-bg">
+      <div class="ambient-orb orb-1"></div>
+      <div class="ambient-orb orb-2"></div>
+      <div class="ambient-orb orb-3"></div>
+    </div>
+
+    <aside class="sidebar" ref="sidebarRef">
       <!-- Logo -->
       <div class="logo-block">
         <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
@@ -71,7 +78,12 @@
 
     <main class="main-area">
       <router-view v-slot="{ Component }">
-        <transition name="page" mode="out-in">
+        <transition
+          @enter="onEnter"
+          @leave="onLeave"
+          :css="false"
+          mode="out-in"
+        >
           <component :is="Component" :t="t" :lang="lang" :set-lang="setLang" />
         </transition>
       </router-view>
@@ -80,7 +92,29 @@
 </template>
 
 <script setup>
-import { ref, provide } from 'vue';
+import { ref, provide, onMounted } from 'vue';
+import { useAnimation } from '@/composables/useAnimation';
+
+const { gsap } = useAnimation();
+const sidebarRef = ref(null);
+
+const onEnter = (el, done) => {
+  gsap.fromTo(el, 
+    { y: 15 },
+    { y: 0, duration: 0.6, ease: 'power3.out', onComplete: done }
+  );
+};
+
+const onLeave = (el, done) => {
+  gsap.to(el, { opacity: 0, y: -10, duration: 0.4, ease: 'power3.in', onComplete: done });
+};
+
+onMounted(() => {
+  // Staggered entrance for sidebar elements
+  const tl = gsap.timeline();
+  tl.from(sidebarRef.value, { x: -50, opacity: 0, duration: 0.8, ease: 'power4.out' });
+  tl.from('.sidebar > *', { opacity: 0, y: 10, stagger: 0.08, duration: 0.6, ease: 'power2.out' }, '-=0.4');
+});
 
 const TRANSLATIONS = {
   en: {
@@ -90,7 +124,7 @@ const TRANSLATIONS = {
     urgency: 'Urgency', relevance: 'Relevance',
     run_agent: 'Run Analysis',
     sources_title: 'Manage Sources', add_source: 'Add Source',
-    strategy_title: 'Strategy Workshop', drop_ppt: 'Drop your PowerPoint here', improve_btn: 'Improve My Strategy',
+    strategy_title: 'Strategy Workshop', drop_file: 'Drop your strategy file here', improve_btn: 'Improve My Strategy',
     settings_title: 'Settings',
   },
   fr: {
@@ -100,7 +134,7 @@ const TRANSLATIONS = {
     urgency: 'Urgence', relevance: 'Pertinence',
     run_agent: "Lancer l'Analyse",
     sources_title: 'Gérer les Sources', add_source: 'Ajouter une Source',
-    strategy_title: 'Atelier Stratégie', drop_ppt: 'Déposez votre PowerPoint ici', improve_btn: 'Améliorer Ma Stratégie',
+    strategy_title: 'Atelier Stratégie', drop_file: 'Déposez votre fichier de stratégie ici', improve_btn: 'Améliorer Ma Stratégie',
     settings_title: 'Paramètres',
   },
   ar: {
@@ -110,7 +144,7 @@ const TRANSLATIONS = {
     urgency: 'الإلحاح', relevance: 'الصلة',
     run_agent: 'تشغيل التحليل',
     sources_title: 'إدارة المصادر', add_source: 'إضافة مصدر',
-    strategy_title: 'ورشة الاستراتيجية', drop_ppt: 'أسقط ملف PowerPoint هنا', improve_btn: 'تحسين استراتيجيتي',
+    strategy_title: 'ورشة الاستراتيجية', drop_file: 'أسقط ملف الاستراتيجية هنا', improve_btn: 'تحسين استراتيجيتي',
     settings_title: 'الإعدادات',
   },
 };
@@ -137,119 +171,160 @@ provide('setLang', setLang);
   width: 100vw;
   overflow: hidden;
   background: var(--bg);
+  position: relative;
+}
+
+/* Ambient background with floating orbs */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 50%, #0d0d0d 0%, #080808 100%);
+}
+
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.04;
+  background: var(--accent);
+}
+
+.orb-1 { width: 50vmax; height: 50vmax; top: -10%; left: -10%; animation: float-1 25s infinite alternate; }
+.orb-2 { width: 40vmax; height: 40vmax; bottom: -5%; right: -5%; background: var(--blue); opacity: 0.02; animation: float-2 30s infinite alternate-reverse; }
+.orb-3 { width: 30vmax; height: 30vmax; top: 30%; left: 40%; background: var(--accent2); opacity: 0.02; animation: float-1 20s infinite alternate-reverse; }
+
+@keyframes float-1 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(5%, 5%) scale(1.1); }
+}
+
+@keyframes float-2 {
+  0% { transform: translate(0, 0) scale(1.1); }
+  100% { transform: translate(-8%, 3%) scale(1); }
 }
 
 /* ── Sidebar ── */
 .sidebar {
-  width: 220px;
-  background: var(--bg);
+  width: 260px;
+  background: rgba(8, 8, 8, 0.7);
+  backdrop-filter: blur(20px);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   height: 100%;
+  position: relative;
+  z-index: 2;
 }
 
 .logo-block {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 28px 20px 24px;
+  gap: 12px;
+  padding: 32px 24px;
   border-bottom: 1px solid var(--border);
 }
 
 .logo-text {
   display: flex;
   flex-direction: column;
-  line-height: 1;
-  gap: 3px;
+  line-height: 1.1;
 }
 
 .brand-name {
   font-family: var(--ff-head);
   font-weight: 800;
-  font-size: 15px;
-  letter-spacing: -0.02em;
+  font-size: var(--text-md);
+  letter-spacing: var(--letter-spacing-display);
   color: var(--text);
+  text-transform: uppercase;
 }
 
 .brand-arabic {
   font-family: var(--ff-arabic);
   font-weight: 600;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--accent);
   direction: rtl;
+  opacity: 0.8;
 }
 
 /* Nav */
 .sidebar-nav {
   flex: 1;
-  padding: 12px 0;
+  padding: 20px 0;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
-  padding: 11px 20px;
+  padding: 14px 24px;
   background: transparent;
-  border-left: 2px solid transparent;
+  border-left: 3px solid transparent;
   color: var(--text2);
   font-family: var(--ff-body);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 400;
   text-decoration: none;
-  transition: all 0.15s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav-link:hover {
   color: var(--text);
-  background: var(--bg2);
+  background: rgba(255, 255, 255, 0.03);
+  padding-left: 28px;
 }
 
 .nav-link.active {
-  background: var(--bg2);
+  background: rgba(255, 170, 0, 0.05);
   border-left-color: var(--accent);
   color: var(--text);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .nav-link.active svg {
   color: var(--accent);
+  transform: scale(1.1);
 }
 
 /* Language */
 .lang-block {
-  padding: 16px 20px;
+  padding: 20px 24px;
   border-top: 1px solid var(--border);
 }
 
 .lang-label {
   font-family: var(--ff-mono);
-  font-size: 9px;
+  font-size: var(--text-xs);
   color: var(--text3);
-  letter-spacing: 0.1em;
-  margin-bottom: 8px;
+  letter-spacing: 0.15em;
+  margin-bottom: 12px;
 }
 
 .lang-btns {
   display: flex;
-  gap: 4px;
+  gap: 6px;
 }
 
 .lang-btn {
   flex: 1;
-  padding: 5px 0;
+  padding: 8px 0;
   background: var(--bg2);
   border: 1px solid var(--border);
   color: var(--text2);
   font-family: var(--ff-mono);
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s;
 }
+
+.lang-btn:hover { border-color: var(--text3); }
 
 .lang-btn.active {
   background: var(--accent);
@@ -259,22 +334,24 @@ provide('setLang', setLang);
 
 /* Footer */
 .sidebar-footer {
-  padding: 12px 20px 20px;
+  padding: 20px 24px 32px;
   border-top: 1px solid var(--border);
 }
 
 .agency-name {
-  font-family: var(--ff-mono);
-  font-size: 9px;
-  color: var(--text3);
-  letter-spacing: 0.08em;
+  font-family: var(--ff-head);
+  font-weight: 700;
+  font-size: var(--text-xs);
+  color: var(--text2);
+  letter-spacing: 0.05em;
 }
 
 .agency-plan {
   font-family: var(--ff-mono);
   font-size: 9px;
   color: var(--text3);
-  margin-top: 2px;
+  margin-top: 4px;
+  letter-spacing: 0.1em;
 }
 
 /* Main */
@@ -284,12 +361,9 @@ provide('setLang', setLang);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
+  z-index: 1;
 }
-
-/* Page transitions */
-.page-enter-active { transition: opacity 0.15s ease-out; }
-.page-leave-active { transition: opacity 0.1s ease-in; }
-.page-enter-from, .page-leave-to { opacity: 0; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>

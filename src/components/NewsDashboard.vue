@@ -87,9 +87,23 @@
           >{{ c.label }}</button>
         </div>
 
+        <!-- Sort bar -->
+        <div class="sort-bar">
+          <span class="sort-hint">SORT BY:</span>
+          <div class="sort-btns">
+            <button
+              v-for="s in ['urgency', 'relevance', 'newest']"
+              :key="s"
+              class="sort-btn"
+              :class="{ active: sortBy === s }"
+              @click="sortBy = s"
+            >{{ s.toUpperCase() }}</button>
+          </div>
+        </div>
+
         <!-- News list -->
-        <div class="news-list">
-          <div class="sort-label">↑ URGENCY</div>
+        <div class="news-list" ref="listRef">
+          <div class="sort-label">↑ {{ sortBy.toUpperCase() }}</div>
           <div
             v-for="(item, idx) in sortedNews"
             :key="item.id"
@@ -108,6 +122,7 @@
                 <div class="row-title">{{ item.title }}</div>
                 <div v-if="expandedId === item.id" class="row-expanded">
                   <p class="row-desc">{{ item.body ? item.body.slice(0, 300) : 'No body content available for this article.' }}</p>
+
                   <div class="score-row">
                     <div class="score-item">
                       <div class="score-label">{{ t.urgency }}</div>
@@ -177,14 +192,15 @@
               </svg>
             </div>
             <p class="idle-desc">Reads all active sources and returns a structured intelligence brief.</p>
-            <button class="agent-run-btn" @click="runAnalysis">{{ t.run_agent }}</button>
           </div>
 
           <!-- Running -->
           <div v-else-if="phase === 'running'" class="agent-steps">
             <div v-for="(step, i) in agentSteps" :key="i" class="agent-step">
               <div class="step-dot" :class="i < stepIdx ? 'done' : i === stepIdx ? 'active' : 'pending'"></div>
-              <span class="step-text" :class="i < stepIdx ? 'done' : i === stepIdx ? 'active' : 'pending'">{{ step }}</span>
+              <span :id="'agent-step-' + i" class="step-text" :class="i < stepIdx ? 'done' : i === stepIdx ? 'active' : 'pending'">
+                {{ i < stepIdx ? step : (i === stepIdx ? '' : step) }}
+              </span>
               <span v-if="i < stepIdx" class="step-check">✓</span>
             </div>
           </div>
@@ -230,9 +246,13 @@
 </template>
 
 <script setup>
-import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { useAnimation } from '@/composables/useAnimation';
+import { useNewsLogic } from '@/composables/useNewsLogic';
 
 const t = inject('t');
+const { entrance, staggerList, magneticHover, typewriter, wordReveal, scrollReveal, gsap } = useAnimation();
+const { autoCategorize, calculateScores } = useNewsLogic();
 
 const SCRAPER_BASE = '/api/scraper';
 const ANALYST_BASE = '/api/analyst';
@@ -257,7 +277,9 @@ const expandedId = ref(null);
 const newsCollapsed = ref(false);
 const analysisCollapsed = ref(false);
 const phase = ref('idle');
+const sortBy = ref('urgency');
 const stepIdx = ref(0);
+const listRef = ref(null);
 
 // Live data
 const articles = ref([]);
@@ -299,7 +321,17 @@ const sortedNews = computed(() => {
   if (category.value && category.value !== 'all') {
     list = list.filter(a => a.cat === category.value);
   }
-  return list.sort((a, b) => (b.urgency || 0) - (a.urgency || 0));
+  
+  return list.sort((a, b) => {
+    if (sortBy.value === 'urgency') return (b.urgency || 0) - (a.urgency || 0);
+    if (sortBy.value === 'relevance') return (b.relevance || 0) - (a.relevance || 0);
+    if (sortBy.value === 'newest') {
+      const da = new Date(a.raw_date || 0);
+      const db = new Date(b.raw_date || 0);
+      return db - da;
+    }
+    return 0;
+  });
 });
 
 const bothVisible = computed(() => !newsCollapsed.value && !analysisCollapsed.value);
@@ -323,7 +355,6 @@ const RESULT_SUMMARY = computed(() => {
 });
 
 const RESULT_CLUSTERS = computed(() => {
-  // Group analysis items by relevance score since it's an integer 0-100
   const items = analysisItems.value;
   if (!items.length) return [];
 
@@ -344,31 +375,73 @@ const RESULT_RECS = computed(() => {
     : ['Run the agent to get strategic recommendations.'];
 });
 
+
+
+/**
+ * Heuristic automated categorization
+ */
+function autoCategorize(title, body = '') {
+  const content = (title + ' ' + body).toLowerCase();
+  
+  const mapping = {
+    tech: ['ai', 'intelligence artificielle', 'startup', 'digital', 'data', 'api', 'software', 'robot', 'cyber', 'meta', 'google', 'apple', 'microsoft'],
+    economy: ['bourse', 'dinar', 'imf', 'fmi', 'growth', 'inflation', 'banque', 'bank', 'finance', 'business', 'entreprises', 'marché'],
+    politics: ['gouvernement', 'parlement', 'vote', 'élection', 'ministre', 'policy', 'summit', 'sommet', 'democratie', 'onu', 'un'],
+    culture: ['art', 'cinéma', 'film', 'musique', 'music', 'exhibition', 'expo', 'festival', 'urban', 'lifestyle', 'théâtre', 'misk'],
+    lifestyle: ['food', 'cuisine', 'travel', 'gastronomy', 'voyage', 'restaurant', 'table', 'gastronomie'],
+    sport: ['football', 'champions league', 'psg', 'bayern', 'match', 'score', 'sport', 'tennis', 'atp'],
+    weather: ['météo', 'pluie', 'soleil', 'température', 'climat', 'weather', 'rain', 'forecast'],
+    social: ['société', 'gen z', 'jeunes', 'social media', 'trends', 'tendances', 'communauté', 'femme', 'women']
+  };
+
+  for (const [cat, keywords] of Object.entries(mapping)) {
+    if (keywords.some(k => content.includes(k))) return cat;
+  }
+  
+  return 'culture'; // Default to culture/urban for editorial feel if no match
+}
+
 // ── API calls ──────────────────────────────────────────────────────────────
 async function fetchArticles() {
   try {
     const params = new URLSearchParams({ window: timeWindow.value });
-    // Remove category filtering from backend — we fetch everything and filter frontend
     const res = await fetch(`${SCRAPER_BASE}/articles?${params}`);
     if (!res.ok) throw new Error(`Scraper returned ${res.status}`);
     const json = await res.json();
     const raw = json.data || [];
 
-    articles.value = raw.map((a, i) => ({
-      id: i + 1,
-      cat: 'uncategorized',
-      urgency: 50 + Math.floor(Math.random() * 40), // placeholder until agent scores
-      relevance: 50 + Math.floor(Math.random() * 40),
-      title: a.title || 'Untitled',
-      source: a.source || 'Unknown',
-      time: formatRelativeTime(a.published_at),
-      tag: null,
-      body: a.body || '',
-      url: a.url || '',
-    }));
+    articles.value = raw.map((a, i) => {
+      const initialCat = a.category ? a.category.toLowerCase() : autoCategorize(a.title, a.body);
+      const scores = calculateScores(a.title, a.body, a.published_at);
+      
+      return {
+        id: i + 1,
+        cat: initialCat,
+        urgency: scores.urgency,
+        relevance: scores.relevance,
+        title: a.title || 'Untitled',
+        source: a.source || 'Unknown',
+        time: formatRelativeTime(a.published_at),
+        raw_date: a.published_at,
+        tag: scores.tag,
+        body: a.body || '',
+        url: a.url || '',
+      };
+    });
 
     const now = new Date();
     lastUpdate.value = `Today, ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    
+    // Staggered entrance for news rows
+    nextTick(() => {
+      staggerList('.news-row', { 
+        delay: 0.1, 
+        y: 15,
+        onComplete: () => {
+          document.querySelectorAll('.news-row').forEach(row => scrollReveal(row));
+        }
+      });
+    });
   } catch (err) {
     console.error('[NewsDashboard] Failed to fetch articles:', err);
   }
@@ -421,16 +494,25 @@ async function runAnalysis() {
   stepIdx.value = 0;
   analysisError.value = null;
 
-  // Animate steps while the real API call runs
-  let step = 0;
-  const iv = setInterval(() => {
-    step++;
-    stepIdx.value = Math.min(step, agentSteps.length - 1);
-  }, 800);
+  // Run typewriter for first step
+  nextTick(() => {
+    typewriter('#agent-step-0', agentSteps[0]);
+  });
 
-    try {
+  const runVisualSteps = async () => {
+    for (let i = 0; i < agentSteps.length - 1; i++) {
+      stepIdx.value = i;
+      await new Promise(r => setTimeout(r, 1000));
+      if (i + 1 < agentSteps.length) {
+        typewriter(`#agent-step-${i+1}`, agentSteps[i+1]);
+      }
+    }
+  };
+  
+  const stepPromise = runVisualSteps();
+
+  try {
     const params = new URLSearchParams({ window: timeWindow.value });
-    // The analyst agent shouldn't filter by category on the backend either
     const res = await fetch(`${ANALYST_BASE}/analyze?${params}`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -442,7 +524,6 @@ async function runAnalysis() {
     analysisItems.value = result.items || [];
     analysisTldr.value = result.tldr || [];
 
-    // Map the agent's findings back to our news feed!
     analysisItems.value.forEach(item => {
       const target = articles.value.find(a => a.id === item.id);
       if (target) {
@@ -451,30 +532,36 @@ async function runAnalysis() {
         target.relevance = item.relevance_score;
         target.why_it_matters = item.why_it_matters;
         if (item.headline && item.headline !== 'N/A') {
-          target.title = item.headline; // Optional: use the concise rewrite
+          target.title = item.headline;
         }
       }
     });
 
-    // Build a summary from the first few items
     if (analysisItems.value.length > 0) {
       const topItems = analysisItems.value.slice(0, 3);
       analysisSummary.value = topItems
         .map(i => i.why_it_matters)
         .filter(Boolean)
         .join(' ');
+      
+      // Animate summary reveal
+      nextTick(() => {
+        wordReveal('.result-summary');
+      });
     }
   } catch (err) {
     analysisError.value = err.message;
     console.error('[NewsDashboard] Analysis failed:', err);
   } finally {
-    clearInterval(iv);
+    await stepPromise;
     stepIdx.value = agentSteps.length;
     setTimeout(() => {
       phase.value = analysisError.value ? 'idle' : 'done';
     }, 400);
   }
 }
+
+
 
 // ── Drag to resize ─────────────────────────────────────────────────────────
 function startDrag(e) {
@@ -503,11 +590,24 @@ function stopDrag() {
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 onMounted(() => {
   fetchArticles();
+
+  // Magnetic pills
+  setTimeout(() => {
+    document.querySelectorAll('.cat-btn, .time-btn, .run-btn').forEach(el => magneticHover(el, 0.2));
+  }, 1000);
 });
 
-// Re-fetch when filters change
 watch([timeWindow, category], () => {
   fetchArticles();
+});
+
+watch(phase, (p) => {
+  if (p === 'done') {
+    nextTick(() => {
+      entrance('.result-card, .cluster-item, .signal-item', { stagger: 0.1, y: 20 });
+      wordReveal('.result-summary');
+    });
+  }
 });
 
 onUnmounted(() => {
@@ -529,35 +629,37 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  height: 52px;
+  padding: 0 24px;
+  height: 60px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  gap: 8px;
+  background: var(--bg);
 }
 
 .pane-toggles {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
-.sep { color: var(--border2); font-size: 12px; }
+.sep { color: var(--border2); font-size: 14px; opacity: 0.5; }
 
 .pane-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  background: var(--bg2);
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border2);
   color: var(--text);
   font-family: var(--ff-mono);
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
-  letter-spacing: 0.04em;
-  transition: all 0.15s;
+  letter-spacing: 0.06em;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+.pane-toggle:hover { background: rgba(255, 255, 255, 0.08); border-color: var(--text3); }
 
 .pane-toggle.collapsed {
   background: transparent;
@@ -565,25 +667,23 @@ onUnmounted(() => {
   color: var(--text3);
 }
 
-.toggle-arrow { color: var(--text2); font-size: 9px; }
-.pane-toggle.collapsed .toggle-arrow { color: var(--text3); }
-
-.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.toggle-arrow { color: var(--text2); font-size: 10px; opacity: 0.7; }
 
 .run-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 14px;
+  gap: 8px;
+  padding: 6px 16px;
   background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text2);
+  border: 1px solid var(--accent);
+  color: var(--accent);
   font-family: var(--ff-mono);
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s;
 }
-.run-btn:hover { border-color: var(--accent); color: var(--accent); }
+.run-btn:hover { background: var(--accent); color: #000; }
 
 /* Split body */
 .split-body {
@@ -606,17 +706,17 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  height: 48px;
+  padding: 0 24px;
+  height: 56px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
-.controls-left { display: flex; align-items: center; gap: 12px; }
-.pane-title { font-family: var(--ff-head); font-size: 14px; font-weight: 700; letter-spacing: -0.02em; }
-.last-update { font-family: var(--ff-mono); font-size: 9px; color: var(--text3); }
+.controls-left { display: flex; align-items: center; gap: 16px; }
+.pane-title { font-family: var(--ff-head); font-size: var(--text-base); font-weight: 800; letter-spacing: var(--letter-spacing-display); text-transform: uppercase; }
+.last-update { font-family: var(--ff-mono); font-size: 10px; color: var(--text3); }
 
-.controls-right { display: flex; align-items: center; gap: 8px; }
+.controls-right { display: flex; align-items: center; gap: 12px; }
 
 .time-toggle {
   display: flex;
@@ -624,57 +724,81 @@ onUnmounted(() => {
   overflow: hidden;
 }
 .time-btn {
-  padding: 4px 10px;
+  padding: 5px 12px;
   background: transparent;
   border: none;
   border-right: 1px solid var(--border);
   color: var(--text2);
   font-family: var(--ff-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s;
 }
 .time-btn:last-child { border-right: none; }
-.time-btn.active { background: var(--accent); color: #000; }
+.time-btn.active { background: var(--bg3); color: var(--accent); }
 
 .update-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 14px;
+  gap: 8px;
+  padding: 6px 16px;
   background: var(--accent);
-  border: 1px solid var(--accent);
+  border: none;
   color: #000;
   font-family: var(--ff-head);
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 800;
+  letter-spacing: 0.05em;
   cursor: pointer;
   transition: all 0.2s;
 }
-.update-btn.updating {
-  background: var(--bg2);
-  border-color: var(--border);
-  color: var(--text2);
-  cursor: not-allowed;
-}
+.update-btn.updating { background: var(--bg2); color: var(--text3); }
 
-.spinner {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border: 1.5px solid rgba(0,0,0,0.3);
-  border-top-color: #000;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+/* Sort Bar */
+.sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sort-hint {
+  font-family: var(--ff-mono);
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 0.1em;
+}
+.sort-btns {
+  display: flex;
+  gap: 8px;
+}
+.sort-btn {
+  padding: 2px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text2);
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.sort-btn:hover { color: var(--text); }
+.sort-btn.active {
+  background: var(--bg3);
+  border-color: var(--border2);
+  color: var(--accent);
 }
 
 /* Category bar */
 .cat-bar {
   display: flex;
-  gap: 0;
-  padding: 0 20px;
-  height: 36px;
+  gap: 4px;
+  padding: 0 24px;
+  height: 44px;
   align-items: center;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -682,122 +806,109 @@ onUnmounted(() => {
 }
 
 .cat-btn {
-  padding: 3px 10px;
+  padding: 4px 12px;
   background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
+  border: 1px solid transparent;
   color: var(--text2);
   font-family: var(--ff-body);
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 400;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s;
-  margin-bottom: -1px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.cat-btn.active { border-bottom-color: var(--accent); color: var(--text); font-weight: 500; }
+.cat-btn:hover { color: var(--text); }
+.cat-btn.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
 /* News list */
 .news-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 20px 24px;
+  padding: 0 24px 32px;
 }
 
 .sort-label {
   font-family: var(--ff-mono);
-  font-size: 9px;
+  font-size: 10px;
   color: var(--text3);
-  letter-spacing: 0.1em;
-  padding: 12px 0 8px;
+  letter-spacing: 0.15em;
+  padding: 20px 0 12px;
 }
 
 .news-row {
   border-bottom: 1px solid var(--border);
-  padding: 16px 0;
+  padding: 20px 0;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
 }
+.news-row:hover { background: rgba(255, 255, 255, 0.01); transform: translateX(4px); }
 .news-row.expanded {
-  background: var(--bg2);
-  margin: 0 -20px;
-  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.02);
+  margin: 0 -24px;
+  padding: 24px;
+  border-left: 4px solid var(--accent);
 }
 
-.row-main { display: flex; align-items: flex-start; gap: 16px; }
+.row-main { display: flex; align-items: flex-start; gap: 20px; }
 
-.row-idx { font-family: var(--ff-mono); font-size: 10px; color: var(--text3); min-width: 20px; padding-top: 2px; }
+.row-idx { font-family: var(--ff-mono); font-size: 11px; color: var(--text3); min-width: 24px; padding-top: 4px; opacity: 0.5; }
 
-.cat-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+.cat-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 8px; flex-shrink: 0; }
 
 .row-content { flex: 1; min-width: 0; }
 
-.row-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.row-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 
 .tag-pill {
   font-family: var(--ff-mono);
-  font-size: 9px;
-  font-weight: 500;
-  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
   border: 1px solid;
   letter-spacing: 0.08em;
 }
-.tag-pill.breaking { border-color: var(--red); color: var(--red); }
-.tag-pill.alert { border-color: var(--accent); color: var(--accent); }
-.tag-pill.hot { border-color: var(--green); color: var(--green); }
 
-.row-source { font-family: var(--ff-mono); font-size: 9px; color: var(--text3); }
+.row-source { font-family: var(--ff-mono); font-size: 10px; color: var(--text3); }
 
 .row-title {
   font-family: var(--ff-head);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.35;
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: 1.3;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 
-.row-expanded { margin-top: 12px; }
+.row-expanded { margin-top: 16px; }
 
 .row-desc {
   font-family: var(--ff-body);
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text2);
-  line-height: 1.7;
-  margin-bottom: 16px;
+  line-height: 1.8;
+  margin-bottom: 24px;
 }
 
-.score-row { display: flex; gap: 24px; }
-.score-item { flex: 1; }
-.score-label { font-family: var(--ff-mono); font-size: 9px; color: var(--text3); letter-spacing: 0.08em; margin-bottom: 6px; }
-.score-bar { flex: 1; height: 2px; background: var(--border2); position: relative; margin-bottom: 0; display: flex; align-items: center; }
-.score-fill { position: absolute; left: 0; top: 0; height: 100%; transition: width 0.5s; }
-.score-val { font-family: var(--ff-mono); font-size: 10px; color: var(--accent); min-width: 28px; display: block; margin-top: 4px; }
-
-.row-scores { display: flex; gap: 16px; flex-shrink: 0; }
-.score-compact { text-align: right; min-width: 40px; }
-.sc-label { font-family: var(--ff-mono); font-size: 8px; color: var(--text3); letter-spacing: 0.06em; margin-bottom: 4px; }
-.sc-val { font-family: var(--ff-mono); font-size: 13px; color: var(--text2); font-weight: 500; }
-.sc-val.high { color: var(--red); }
-.sc-val.mid { color: var(--accent); }
+.score-compact { text-align: right; min-width: 48px; }
+.sc-label { font-family: var(--ff-mono); font-size: 9px; color: var(--text3); letter-spacing: 0.1em; margin-bottom: 4px; }
+.sc-val { font-family: var(--ff-mono); font-size: 14px; font-weight: 600; }
 
 /* Drag handle */
 .drag-handle {
-  width: 5px;
+  width: 1px;
   flex-shrink: 0;
   cursor: col-resize;
   background: var(--border);
   position: relative;
   z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  transition: background 0.3s;
 }
-.drag-handle:hover { background: var(--border2); }
-.drag-grip {
-  width: 3px;
-  height: 32px;
-  border-radius: 2px;
-  background: var(--border2);
+.drag-handle:hover { background: var(--accent); }
+.drag-handle::after {
+  content: '';
+  position: absolute;
+  inset: 0 -4px;
 }
 
 /* Analysis pane */
@@ -807,11 +918,12 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.01);
 }
 
 .analysis-header {
-  padding: 0 20px;
-  height: 48px;
+  padding: 0 24px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -819,116 +931,48 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.analysis-label { font-family: var(--ff-mono); font-size: 10px; color: var(--text3); letter-spacing: 0.1em; }
+.analysis-label { font-family: var(--ff-mono); font-size: 11px; color: var(--text3); letter-spacing: 0.15em; font-weight: 600; }
 
-.status-done { display: flex; align-items: center; gap: 6px; }
-.status-dot { width: 6px; height: 6px; border-radius: 50%; }
-.status-dot.green { background: var(--green); }
-.status-done span { font-family: var(--ff-mono); font-size: 9px; color: var(--green); }
-.status-running { font-family: var(--ff-mono); font-size: 9px; color: var(--accent); }
+.status-done span { font-family: var(--ff-mono); font-size: 10px; color: var(--green); font-weight: 700; }
 
 .analysis-body {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px 24px;
-}
-
-/* Idle */
-.analysis-idle {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 14px;
-}
-
-.idle-icon {
-  width: 56px;
-  height: 56px;
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.idle-desc { font-family: var(--ff-body); font-size: 12px; color: var(--text3); text-align: center; max-width: 260px; line-height: 1.6; }
-
-.agent-run-btn {
-  padding: 8px 24px;
-  background: var(--accent);
-  border: none;
-  color: #000;
-  font-family: var(--ff-head);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-/* Steps */
-.agent-steps { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
-.agent-step { display: flex; align-items: center; gap: 10px; }
-.step-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-.step-dot.done { background: var(--green); }
-.step-dot.active { background: var(--accent); }
-.step-dot.pending { background: var(--border2); }
-.step-text { font-family: var(--ff-mono); font-size: 11px; }
-.step-text.done, .step-text.active { color: var(--text); }
-.step-text.pending { color: var(--text3); }
-.step-check { font-family: var(--ff-mono); font-size: 9px; color: var(--green); }
-
-/* Results */
-.analysis-results { display: flex; flex-direction: column; gap: 16px; }
-
-.result-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  padding: 16px;
+  padding: 24px;
 }
 
 .result-card-label {
   font-family: var(--ff-mono);
-  font-size: 8px;
+  font-size: 10px;
   color: var(--text3);
-  letter-spacing: 0.1em;
-  margin-bottom: 8px;
+  letter-spacing: 0.15em;
+  margin-bottom: 12px;
+  text-transform: uppercase;
 }
 
-.result-summary { font-family: var(--ff-body); font-size: 12px; color: var(--text); line-height: 1.75; }
+.result-summary { font-family: var(--ff-body); font-size: var(--text-sm); color: var(--text); line-height: 1.8; }
 
-.clusters { display: flex; flex-direction: column; gap: 1px; }
 .cluster-item {
-  background: var(--bg2);
+  background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border);
-  padding: 12px 16px;
+  padding: 16px 20px;
+  margin-bottom: 2px;
+  transition: all 0.3s ease;
 }
-.cluster-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.cluster-theme { font-family: var(--ff-head); font-size: 12px; font-weight: 600; }
-.cluster-urg { font-family: var(--ff-mono); font-size: 9px; color: var(--accent); }
-.cluster-urg.high { color: var(--red); }
-.cluster-articles { display: flex; flex-wrap: wrap; gap: 4px 12px; }
-.cluster-article { font-family: var(--ff-body); font-size: 10px; color: var(--text2); }
+.cluster-item:hover { background: rgba(255, 255, 255, 0.04); border-color: var(--border2); }
 
-.signals { display: flex; flex-direction: column; gap: 1px; }
+.cluster-theme { font-family: var(--ff-head); font-size: 14px; font-weight: 700; color: var(--text); }
+
 .signal-item {
   display: flex;
-  gap: 12px;
-  padding: 10px 14px;
-  background: var(--bg2);
+  gap: 16px;
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border);
+  margin-bottom: 2px;
 }
-.signal-arrow { font-family: var(--ff-mono); font-size: 10px; color: var(--accent); }
-.signal-text { font-family: var(--ff-body); font-size: 11px; color: var(--text2); line-height: 1.6; }
 
-.rerun-btn {
-  padding: 7px 16px;
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text3);
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  cursor: pointer;
-  align-self: flex-start;
-}
-.rerun-btn:hover { border-color: var(--border2); color: var(--text2); }
+.signal-text { font-family: var(--ff-body); font-size: 13px; color: var(--text2); line-height: 1.7; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

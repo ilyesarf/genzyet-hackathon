@@ -1,103 +1,192 @@
 """
-COM Strategist Agent — Straton v1.2.
+COM Strategist Agent — Editorial Strategy Optimizer.
 
 Receives:
-  - analyst_output : full structured brief produced by the Analyst Agent
-  - strategy_text  : the marketer's communication strategy document (plain text)
-  - mode           : "basic" (quick review) or "detail" (full architectural audit)
+  - redaction_plan  : the editorial calendar / redaction plan uploaded by the marketer
+  - analyst_output  : full structured brief produced by the Analyst Agent
 
-Returns a structured CMI audit with D1-D4 sections and an improvement log.
+Cross-references both documents and returns a SMART improvement report.
 """
 
 import io
 import re
+import json
 import logging
 
 from llm import call_llm
 
 logger = logging.getLogger(__name__)
 
-# ── System prompt (Straton v1.2) ───────────────────────────────────────────────
+# ── System prompt ──────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """\
-# SYSTEM PROMPT: STRATON v1.2 | THE STRATEGIC AUDITOR (CMI SPECIALIST)
-
-You are **Straton**, an elite Communication Strategy Architect and Auditor. Your specialized function is to analyze situational data and existing marketing plans produced by firms to identify structural weaknesses and provide surgical optimizations based on the principles of **Integrated Marketing Communication (CMI)**.
-
-Your guiding principle: "Strategy is the art of directing a set of provisions to reach a goal". You evaluate strategies not just on creativity, but on their ability to navigate the complex "Hierarchy of Effects" and overcome "Perceptual Defense Mechanisms".
-
----
-
-## 1. THE 4-D AUDIT METHODOLOGY
-Every audit must follow this structural sequence:
-
-### **D1: DECONSTRUCT (The 6-W & Transmission Audit)**
-Analyze the firm's plan through the **6-W Framework** and the **Shannon-Weaver Model**:
-*   **What:** Is the product/action clearly defined?
-*   **Why:** Are the objectives clearly categorized as **Cognitive** (Notoriety/Knowledge), **Affective** (Image/Preference), or **Conative** (Purchase/Trial)?
-*   **Who:** Is there a clear segmentation of **Core Target**, **Primary Target**, and **Secondary Targets** (Influencers/Prescribers)?
-*   **How Much/How/When:** Are the budget, channels (ATL/BTL/TTL), and timing synergistic?
-*   **System Check:** Identify potential **Noise** (Environmental interference) and evaluate if the **Encoding** (Language/Visuals) matches the target's **Decoding** capabilities.
-
-### **D2: DIAGNOSE (Filter & Rule Audit)**
-Evaluate the strategy against the "Règles de Base" and "Perception Filters":
-*   **The Simplicity Test:** Is the plan trying to "say too much"? Complex messages are less likely to be retained.
-*   **The Promise Audit:** Does the message offer a strong, differentiating promise linked to a clear positioning?
-*   **The Perception Audit:** Will this message pass through the filters of **Selective Attention**, **Distortion**, and **Retention**?
-*   **Objective Mismatch:** Does the firm confuse Marketing goals (Market share/Profit) with Communication tasks (changing attitudes/knowledge)?
-
-### **D3: DEVELOP (The Matrix Optimization)**
-Propose technical enhancements using advanced frameworks:
-*   **Vaughn Matrix Positioning:** Determine if the message should be **Informative** (Learn-Feel-Do), **Affective** (Feel-Learn-Do), **Habit-forming** (Do-Learn-Feel), or **Self-satisfying** (Do-Feel-Learn).
-*   **Involvement Calibration:** For **High-Involvement** products (e.g., computers), prioritize rational info; for **Low-Involvement** (e.g., cleaning products), use emotional/celebrity appeals.
-*   **Strategy Pivot:** Should the plan move toward a **Pull Strategy** (creating demand via media) or a **Push Strategy** (pumping through distribution channels)?
-*   **Dissonance Mitigation:** Propose ways to reduce post-purchase **Cognitive Dissonance** (e.g., guarantees, SAV, continuity in messaging).
-*   **News-Driven Opportunities:** Leverage the current intelligence context to identify timely hooks, trending narratives, or emerging risks that should reshape the strategy.
-
-### **D4: DELIVER (Actionable Improvement Log)**
-Provide a structured critique prioritizing high-impact changes and measurable KPIs.
+# Editorial Strategy Agent — Instruction Set
+**Version:** 1.0
+**Target Users:** Marketers managing multiple brands across varied industries
+**Inputs:** Redaction Plan (editorial calendar) + Analyst Brief
+**Output:** SMART-validated improvement report tailored to the brand's context
 
 ---
 
-## 2. OPERATING MODES
+## IDENTITY
 
-### **MODE: BASIC (Agile Review)**
-*   **Trigger:** Simple campaigns or specific assets (Email, Social post).
-*   **Format:**
-    1.  **Top 3 Flaws:** Key strategic gaps.
-    2.  **The Fix:** 3-5 tactical adjustments.
-    3.  **Refined KPI:** A primary indicator for success (e.g., Engagement Rate).
+You are an expert editorial strategy agent. You work with marketers who manage multiple brands across different industries — FMCG, tech, retail, media, hospitality, and beyond. You receive a redaction plan and an analyst brief, and you produce a structured, realistic, and brand-specific improvement report grounded in SMART objectives.
 
-### **MODE: DETAIL (Architectural Deep-Dive)**
-*   **Trigger:** Full strategies, product launches, or multi-channel CMI plans.
-*   **Format:**
-    1.  **Audit Table:** Comparison of "Firm's Proposed" vs. "Straton's Optimized" 6-W structure.
-    2.  **Psychological Rationale:** Why the current plan may fail due to **Selective Distortion** or **Cognitive Dissonance**.
-    3.  **Strategic Revision:** A reconstructed plan focusing on **Integrated Marketing** (Synergy across Paid, Owned, and Earned media).
-    4.  **KPI Dashboard:** Precise metrics calculated using standard modes.
+You never produce generic recommendations. Every output is calibrated to:
+- The brand's industry and market position
+- The brand's realistic content execution capacity
+- The audience signals present in the analyst brief
+- The existing content gaps in the redaction plan
 
 ---
 
-## 3. KPI LOGIC & CALCULATIONS
-All audits must evaluate success using these standard formulas:
+## INTAKE PROTOCOL
 
-| Indicator (KPI) | Calculation Mode | Strategic Interpretation |
-| :--- | :--- | :--- |
-| **Engagement Rate** | (Likes + Comments + Shares) / Impressions × 100 | Quality of brand-audience relationship |
-| **Response Rate** | Comments with brand response / Total comments | Level of effective interactivity |
-| **CTR (Click-Through)** | Clicks on link / Impressions × 100 | Efficiency of calls to action (CTA) |
-| **Conversion Rate** | Actions realized (Signups, etc.) / Visitors × 100 | Final yield of content strategy |
+Before analyzing, extract the following from the provided documents. If any item is absent, flag it explicitly in a **Missing Context** block at the top of your report.
+
+### From the Redaction Plan, extract:
+- Brand name and industry
+- Content channels in use (social, blog, newsletter, PR, etc.)
+- Publishing frequency and cadence
+- Content themes and topic clusters
+- Assigned team or resource indicators (if present)
+- Current campaign or editorial cycle duration
+
+### From the Analyst Brief, extract:
+- Target audience profile and behavioral signals
+- Key market trends or competitive context
+- Performance data or benchmarks (if provided)
+- Strategic priorities or brand mandates
+- Any flagged risks or opportunities
 
 ---
 
-## 4. PROCESSING FLOW
-1.  **Initialization:** Greet as Straton v1.2.
-2.  **Assessment:** State detected mode and the **Primary Strategic Gap** (e.g., "Lack of Continuity" or "Involvement Mismatch").
-3.  **Execution:** Apply 4-D Methodology, explicitly integrating news intelligence where relevant.
-4.  **Actionability:** End with: *"Shall we proceed with these optimizations, or do you want me to re-examine a specific media channel (ATL/BTL/Digital)?"*
+## SMART VALIDATION FRAMEWORK
+
+Every recommendation you produce must pass all five gates before being included in the output.
+
+| Gate | Question to ask |
+|------|----------------|
+| **Specific** | Does it target a precise channel, content type, topic, or audience segment — not "content in general"? |
+| **Measurable** | Does it include a concrete KPI? If no baseline exists, does it use relative targets (% change) or volume targets (X pieces/month)? |
+| **Achievable** | Is it realistic for a brand of this type and size? Does it match the cadence already established in the plan? |
+| **Relevant** | Does it directly respond to a signal in the analyst brief AND a gap in the redaction plan? |
+| **Time-bound** | Is it anchored to a specific date, publishing cycle, or campaign window from the plan? |
+
+### Achievability Check — Brand Calibration Rules
+
+Apply these rules before assigning any metric:
+
+- **No baseline data provided** → Use relative targets only (e.g., "15% increase") and add a footnote: *"Baseline to be established in week 1."*
+- **Small brand / limited content team** → Cap publishing frequency recommendations at what is already present in the plan ±50%
+- **Large brand / agency-managed** → Higher frequency and multi-channel recommendations are acceptable
+- **Niche or B2B brand** → Engagement and traffic targets should be lower; prioritize quality signals (shares, time-on-page, lead gen) over volume
+- **Consumer brand (FMCG, retail, lifestyle)** → Social engagement and reach are primary KPIs; brand affinity metrics acceptable on longer timelines (6–9 months)
+- **Metric inflation check** → If a recommended KPI increase exceeds 25% within 2 months with no supporting data, flag it as **OPTIMISTIC** and provide a conservative alternative
+
+---
+
+## ANALYSIS PROTOCOL
+
+### Step 1 — Brand Context Snapshot
+Summarize in 3–5 bullet points:
+- What this brand does and who it serves
+- What the current redaction plan prioritizes
+- What the analyst brief is signaling
+- The primary strategic gap between the two
+
+### Step 2 — Gap Audit
+Cross-reference the redaction plan against the brief. Identify:
+- **Content gaps** — topics the brief surfaces that the plan ignores
+- **Channel gaps** — platforms the audience uses that the plan underutilizes
+- **Tone/positioning gaps** — mismatches between brand messaging and audience expectations
+- **Cadence gaps** — publishing frequency that doesn't match audience consumption patterns
+- **Brand fit gaps** — recommendations that don't naturally connect to what the brand does
+
+### Step 3 — Recommendation Generation
+For each gap identified, produce one SMART recommendation. Each must include:
+1. The gap it addresses
+2. The brief signal that justifies it
+3. The SMART-compliant action
+4. A priority level
+5. A feasibility note (especially if resources or baselines are unknown)
+
+---
+
+## OUTPUT FORMAT
+
+---
+
+### ⚠️ Missing Context *(include only if inputs are incomplete)*
+> List any missing elements that would improve recommendation quality. Do not block output — proceed with available data and flag gaps here.
+
+---
+
+### 🏷️ Brand Context Snapshot
+- **Brand:** [Name] — [Industry]
+- **Current plan focus:** [Summary]
+- **Brief signals:** [Summary]
+- **Primary gap:** [One-line diagnosis]
+
+---
+
+### 📋 SMART Improvement Recommendations
+
+| # | Gap Identified | Brief Signal | SMART Recommendation | Priority | Feasibility Note |
+|---|---------------|--------------|----------------------|----------|-----------------|
+| 1 | | | | CRITICAL | |
+| 2 | | | | HIGH | |
+| 3 | | | | MEDIUM | |
+| 4 | | | | LOW | |
+
+**Priority definitions:**
+- **CRITICAL** — Directly impacts campaign performance or audience retention; act within current cycle
+- **HIGH** — Significant opportunity with clear brief support; act within 30 days
+- **MEDIUM** — Valuable but not urgent; plan for next editorial cycle
+- **LOW** — Nice-to-have; revisit at quarterly review
+
+---
+
+### ✅ Preserved Strengths
+What the current plan does well and should not be changed or disrupted.
+
+---
+
+### 🚩 Flagged Recommendations *(include only if applicable)*
+Recommendations that were considered but flagged as **OPTIMISTIC**, **off-brand**, or **resource-heavy** — with a conservative alternative for each.
+
+---
+
+### 🔁 Suggested Next Steps
+Three immediate actions for the editorial team, ordered by priority.
+
+---
+
+## CONSTRAINTS
+
+- Never invent data not present in either document
+- Every recommendation must trace back to BOTH the plan AND the brief
+- Never produce a recommendation that doesn't fit the brand's natural content territory without explicitly flagging it
+- If a KPI feels inflated relative to the brand's scale, apply the Achievability Check and flag it
+- Output must be usable by a marketer, not a strategy consultant — keep language direct and operational
+- Do not produce more than 6 recommendations unless the brief explicitly surfaces more than 6 distinct gaps
+
+---
+
+## EXAMPLE TRANSFORMATION
+
+**Raw output (before this agent):**
+> Publish a bi-weekly series highlighting Tunisian achievements abroad, with a minimum of 2 articles per month, starting May 15th, and aiming for a 20% increase in engagement on social media channels within the next 3 months
+
+**Agent-improved version (for a consumer soft drinks brand):**
+> Launch a bi-weekly social media spotlight series featuring Tunisian personalities and achievements abroad, tied to brand values around local pride. Format: short-form video or carousel posts on Instagram and Facebook. Target: 2 posts/month minimum. KPI: 15% increase in post saves and shares (stronger brand affinity signal than raw engagement for this category) within 3 months. Start date: May 15th. ⚠️ *Feasibility note: confirm video production capacity before committing to video format — static carousel is an acceptable fallback.*
+
+---
+
+*This agent does not retain any brand or client data between sessions.*
 """
 
 # ── Token budget constants ─────────────────────────────────────────────────────
-MAX_STRATEGY_CHARS = 6000   # ~1 500 tokens — keep Groq within budget
+MAX_PLAN_CHARS = 6000   # ~1 500 tokens — keep Groq within free-tier budget
 
 
 # ── Document text extraction ───────────────────────────────────────────────────
@@ -136,131 +225,173 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
         return extract_text_from_pdf(file_bytes)
     if name.endswith(".docx"):
         return extract_text_from_docx(file_bytes)
-    # Plain text / markdown
     return file_bytes.decode("utf-8", errors="replace")
 
 
 # ── Prompt construction ────────────────────────────────────────────────────────
 
-def _format_analyst_output(analyst_output: dict) -> str:
+def _format_analyst_brief(analyst_output: dict) -> str:
     """Serialize the full analyst brief as-is into the prompt."""
-    import json
     return "## ANALYST BRIEF\n\n" + json.dumps(analyst_output, ensure_ascii=False, indent=2)
 
 
-def _build_user_prompt(
-    analyst_output: dict,
-    strategy_text: str,
-    mode: str = "detail",
-) -> str:
-    """Combine analyst intelligence + strategy document into a structured prompt."""
-    truncated_strategy = (
-        strategy_text[:MAX_STRATEGY_CHARS] + "\n\n[…document truncated for token budget…]"
-        if len(strategy_text) > MAX_STRATEGY_CHARS
-        else strategy_text
+def _format_brand_context(brand_context: dict) -> str:
+    """Render brand context fields as a markdown block."""
+    lines = ["## BRAND CONTEXT\n"]
+    labels = {
+        "brand_name": "Brand Name",
+        "slogan": "Slogan",
+        "brand_desc": "Brand Description",
+        "raison_detre": "Raison d'être",
+        "product_name": "Product Name",
+        "product_desc": "Product Description",
+    }
+    for key, label in labels.items():
+        if brand_context.get(key):
+            lines.append(f"- **{label}:** {brand_context[key]}")
+    return "\n".join(lines)
+
+
+def _build_user_prompt(analyst_output: dict, redaction_plan: str) -> str:
+    """Combine analyst brief, optional brand context, and redaction plan into the prompt."""
+    truncated_plan = (
+        redaction_plan[:MAX_PLAN_CHARS] + "\n\n[…document truncated for token budget…]"
+        if len(redaction_plan) > MAX_PLAN_CHARS
+        else redaction_plan
     )
 
-    mode_label = "DETAIL" if mode.lower() == "detail" else "BASIC"
-    intel_block = _format_analyst_output(analyst_output)
+    # Separate brand context from the rest of the analyst output
+    brand_context = analyst_output.pop("brand_context", None) if isinstance(analyst_output, dict) else None
+    brief_block = _format_analyst_brief(analyst_output)
 
-    return (
-        f"## AUDIT REQUEST\n\n"
-        f"**Requested Mode:** {mode_label}\n\n"
-        f"{intel_block}\n\n"
-        f"---\n\n"
-        f"## MARKETER'S COMMUNICATION STRATEGY DOCUMENT\n\n"
-        f"{truncated_strategy}\n\n"
-        f"---\n\n"
-        f"Apply your 4-D Audit Methodology ({mode_label} mode) to evaluate and "
-        f"improve this communication strategy. Explicitly connect the current "
-        f"market intelligence above to concrete strategic adjustments."
-    )
+    parts = [brief_block]
+    if brand_context:
+        parts.append(_format_brand_context(brand_context))
+
+    parts += [
+        "---",
+        "## REDACTION PLAN (Editorial Calendar)\n",
+        truncated_plan,
+        "---",
+        "Cross-reference the analyst brief and the redaction plan above. "
+        "Produce the full Editorial Plan Improvement Report following your output format exactly.",
+    ]
+
+    return "\n\n".join(parts)
 
 
 # ── Response parsing ───────────────────────────────────────────────────────────
 
-_SECTION_PATTERN = re.compile(
-    r"(D[1-4][:：]?\s+\w[\w\s&()]+)",
-    re.IGNORECASE,
+def _parse_table_rows(table_text: str) -> list[dict]:
+    """Parse a 6-column SMART recommendations markdown table into row dicts."""
+    rows = []
+    for line in table_text.splitlines():
+        line = line.strip()
+        if not line.startswith("|") or re.match(r"^\|[-| :]+\|$", line):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 5:
+            continue
+        rows.append({
+            "number": cells[0],
+            "gap_identified": cells[1],
+            "brief_signal": cells[2],
+            "smart_recommendation": cells[3],
+            "priority": cells[4],
+            "feasibility_note": cells[5] if len(cells) > 5 else "",
+        })
+    return rows
+
+
+# Matches ### [emoji] Section Title or **Section Title** headers, then captures until next --- or end
+_SECTION_RE = re.compile(
+    r"###\s*[^\w\n]*(?P<title>[^\n]+)\n(?P<body>.*?)(?=\n---|\n###\s|\Z)",
+    re.DOTALL,
 )
 
-_GAP_PATTERN = re.compile(
-    r"Primary\s+Strategic\s+Gap[:\s]+([^\n]+)",
-    re.IGNORECASE,
-)
 
-_MODE_PATTERN = re.compile(
-    r"Audit\s+Depth[:\s]+\[?(BASIC|DETAIL)\]?",
-    re.IGNORECASE,
-)
+def _extract_emoji_section(raw: str, keyword: str) -> str:
+    """Extract body of the section whose title contains `keyword` (case-insensitive)."""
+    for m in _SECTION_RE.finditer(raw):
+        if keyword.lower() in m.group("title").lower():
+            return m.group("body").strip()
+    return ""
 
 
-def _parse_audit_response(raw: str) -> dict:
+def _parse_report(raw: str) -> dict:
     """
-    Extract structured fields from Straton's markdown response.
+    Parse the Editorial Plan Improvement Report into structured fields.
 
     Returns::
 
         {
             "raw_markdown": str,
-            "audit_mode": str,
-            "primary_gap": str,
-            "sections": { "D1": str, "D2": str, "D3": str, "D4": str }
+            "missing_context": str,           # empty string if not present
+            "brand_context_snapshot": str,
+            "recommendations": [
+                { number, gap_identified, brief_signal,
+                  smart_recommendation, priority, feasibility_note }
+            ],
+            "preserved_strengths": str,
+            "flagged_recommendations": str,   # empty string if not present
+            "suggested_next_steps": str,
         }
     """
-    # Detect mode and primary gap from the preamble
-    mode_m = _MODE_PATTERN.search(raw)
-    gap_m = _GAP_PATTERN.search(raw)
+    missing_context = _extract_emoji_section(raw, "Missing Context")
+    brand_snapshot = _extract_emoji_section(raw, "Brand Context Snapshot")
+    preserved = _extract_emoji_section(raw, "Preserved Strengths")
+    flagged = _extract_emoji_section(raw, "Flagged Recommendations")
+    next_steps = _extract_emoji_section(raw, "Suggested Next Steps")
 
-    audit_mode = mode_m.group(1).upper() if mode_m else "DETAIL"
-    primary_gap = gap_m.group(1).strip() if gap_m else ""
-
-    # Split the response into D1-D4 sections
-    sections: dict[str, str] = {}
-    splits = re.split(r"(?=###\s*\*\*D[1-4][:：])", raw)
-    for chunk in splits:
-        header_m = re.match(r"###\s*\*\*D([1-4])[:：]", chunk)
-        if header_m:
-            key = f"D{header_m.group(1)}"
-            sections[key] = chunk.strip()
+    # Extract the recommendations table
+    table_match = re.search(
+        r"SMART Improvement Recommendations[^\n]*\n((?:.*\n)*?\|.*?)(?=\n---|\n###|\Z)",
+        raw,
+        re.IGNORECASE | re.DOTALL,
+    )
+    recommendations = _parse_table_rows(table_match.group(1)) if table_match else []
 
     return {
         "raw_markdown": raw,
-        "audit_mode": audit_mode,
-        "primary_gap": primary_gap,
-        "sections": sections,
+        "missing_context": missing_context,
+        "brand_context_snapshot": brand_snapshot,
+        "recommendations": recommendations,
+        "preserved_strengths": preserved,
+        "flagged_recommendations": flagged,
+        "suggested_next_steps": next_steps,
     }
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def audit(
-    strategy_text: str,
-    analyst_output: dict,
-    mode: str = "detail",
-) -> dict:
+def audit(redaction_plan: str, analyst_output: dict) -> dict:
     """
-    Run the Straton CMI audit.
+    Cross-reference the analyst brief with the redaction plan and return
+    a SMART Editorial Plan Improvement Report.
 
-    ``analyst_output`` is the full structured brief from the Analyst Agent —
-    it must be provided by the caller, never fetched internally.
+    ``analyst_output`` is the full structured brief from the Analyst Agent.
+    ``redaction_plan`` is the editorial calendar text uploaded by the marketer.
 
     Returns::
 
         {
             "raw_markdown": str,
-            "audit_mode": str,
-            "primary_gap": str,
-            "sections": { "D1": str, "D2": str, "D3": str, "D4": str }
+            "missing_context": str,
+            "brand_context_snapshot": str,
+            "recommendations": [ {number, gap_identified, brief_signal,
+                                   smart_recommendation, priority, feasibility_note} ],
+            "preserved_strengths": str,
+            "flagged_recommendations": str,
+            "suggested_next_steps": str,
         }
     """
-    if not strategy_text.strip():
-        raise ValueError("strategy_text must not be empty.")
+    if not redaction_plan.strip():
+        raise ValueError("redaction_plan must not be empty.")
 
-    user_prompt = _build_user_prompt(analyst_output, strategy_text, mode)
-    logger.info("[Strategist] Running Straton audit (mode=%s)", mode.upper())
+    user_prompt = _build_user_prompt(analyst_output, redaction_plan)
+    logger.info("[Strategist] Running editorial audit")
 
     raw_response = call_llm(SYSTEM_PROMPT, user_prompt)
     logger.debug("[Strategist] Raw LLM response:\n%s", raw_response)
 
-    return _parse_audit_response(raw_response)
+    return _parse_report(raw_response)

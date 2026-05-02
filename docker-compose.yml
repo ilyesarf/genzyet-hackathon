@@ -34,6 +34,8 @@ services:
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - strategist-data:/app/data
     depends_on:
       - analyst
     restart: unless-stopped
@@ -52,3 +54,4 @@ services:
 
 volumes:
   scraper-data:
+  strategist-data:

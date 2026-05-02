@@ -1,15 +1,18 @@
 """
-FastAPI application for the COM Strategist Agent (Straton v1.2).
+FastAPI application for the COM Strategist Agent.
 
 Endpoints
 ---------
-POST /audit              — JSON body: analyst_output (required) + strategy_text
-POST /audit/upload       — multipart: analyst_output (JSON string, required) + strategy_file
-GET  /health             — liveness check
+POST /audit          — JSON body: analyst_output + redaction_plan text
+POST /audit/upload   — multipart: analyst_output (JSON string) + redaction_plan file
+GET  /history        — list all past audit records
+POST /history        — save a new audit record
+GET  /health         — liveness check
 """
 
 import json
 import logging
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
@@ -18,6 +21,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from agent import audit, extract_text
+from db import init_db, insert_record, get_all
 from llm import LLMError
 
 logging.basicConfig(
@@ -26,14 +30,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app):
+    init_db()
+    yield
+
+
 app = FastAPI(
-    title="COM Strategist Agent API — Straton v1.2",
+    title="COM Strategist Agent API",
     description=(
-        "CMI audit layer: takes the Analyst Agent's full intelligence brief and a "
-        "marketer-uploaded communication strategy, then returns a structured "
-        "Straton audit with D1-D4 optimizations."
+        "Editorial strategy optimizer: cross-references the Analyst Agent's brief "
+        "with a marketer's redaction plan and returns a SMART improvement report."
     ),
-    version="1.2.0",
+    version="2.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -45,73 +56,73 @@ app.add_middleware(
 )
 
 
-# ── JSON endpoint ──────────────────────────────────────────────────────────────
+# ── JSON audit endpoint ────────────────────────────────────────────────────────
 
 class AuditRequest(BaseModel):
     analyst_output: dict
-    strategy_text: str
-    mode: str = "detail"
+    redaction_plan: str
 
 
-@app.post("/audit", summary="Run a CMI audit (JSON input)")
+@app.post("/audit", summary="Run an editorial audit (JSON input)")
 def post_audit(body: AuditRequest):
     """
-    Run Straton's 4-D audit on the provided communication strategy.
+    Cross-reference the analyst brief with the redaction plan and return
+    a SMART Editorial Plan Improvement Report.
 
     - **analyst_output**: full structured brief from the Analyst Agent
-    - **strategy_text**: full text of the marketer's COM strategy document
-    - **mode**: `"basic"` for an agile review, `"detail"` for a full deep-dive
+    - **redaction_plan**: full text of the editorial calendar / redaction plan
     """
     try:
         result = audit(
-            strategy_text=body.strategy_text,
+            redaction_plan=body.redaction_plan,
             analyst_output=body.analyst_output,
-            mode=body.mode,
         )
         return JSONResponse(content={"status": "success", "data": result})
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except LLMError as exc:
         logger.error("LLM backends exhausted: %s", exc)
-        raise HTTPException(
-            status_code=502,
-            detail="All LLM backends failed. Please try again later.",
-        )
+        raise HTTPException(status_code=502, detail="All LLM backends failed. Please try again later.")
     except Exception as exc:
         logger.error("Audit failed: %s", exc)
         raise HTTPException(status_code=503, detail=f"Audit failed: {exc}")
 
 
-# ── File-upload endpoint ───────────────────────────────────────────────────────
+# ── File-upload audit endpoint ─────────────────────────────────────────────────
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md"}
 
 
-@app.post("/audit/upload", summary="Run a CMI audit (file upload)")
+@app.post("/audit/upload", summary="Run an editorial audit (file upload)")
 async def post_audit_upload(
-    analyst_output: str = Form(..., description="JSON string of the full Analyst Agent brief"),
-    strategy_file: UploadFile = File(..., description="PDF, DOCX, TXT, or MD strategy document"),
-    mode: str = Form("detail", description="'basic' or 'detail'"),
+    strategy_file: UploadFile = File(..., description="PDF, DOCX, TXT, or MD redaction plan"),
+    analyst_output: Optional[str] = Form(None, description="JSON string of the Analyst Agent brief"),
+    mode: str = Form("detail", description="Ignored — kept for frontend compatibility"),
+    brand_name: Optional[str] = Form(None),
+    slogan: Optional[str] = Form(None),
+    brand_desc: Optional[str] = Form(None),
+    raison_detre: Optional[str] = Form(None),
+    product_name: Optional[str] = Form(None),
+    product_desc: Optional[str] = Form(None),
 ):
     """
-    Upload the marketer's strategy document as a file and run Straton's audit.
-
-    Supported file types: **PDF**, **DOCX**, **TXT**, **MD**
-
-    - **analyst_output**: JSON string of the Analyst Agent's full brief (required)
-    - **strategy_file**: the communication strategy document
-    - **mode**: `"basic"` or `"detail"` (default: detail)
+    Upload the redaction plan as a file and run the editorial audit.
+    Supported: **PDF**, **DOCX**, **TXT**, **MD**
     """
-    # Parse analyst_output JSON
-    try:
-        parsed_analyst: dict = json.loads(analyst_output)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid JSON in 'analyst_output': {exc}",
-        )
+    parsed_analyst: dict = {}
+    if analyst_output:
+        try:
+            parsed_analyst = json.loads(analyst_output)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=422, detail=f"Invalid JSON in 'analyst_output': {exc}")
 
-    # Validate file extension
+    brand_context = {k: v for k, v in {
+        "brand_name": brand_name, "slogan": slogan, "brand_desc": brand_desc,
+        "raison_detre": raison_detre, "product_name": product_name, "product_desc": product_desc,
+    }.items() if v}
+    if brand_context:
+        parsed_analyst["brand_context"] = brand_context
+
     filename = strategy_file.filename or ""
     suffix = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if suffix not in ALLOWED_EXTENSIONS:
@@ -120,43 +131,56 @@ async def post_audit_upload(
             detail=f"Unsupported file type '{suffix}'. Allowed: {sorted(ALLOWED_EXTENSIONS)}",
         )
 
-    # Extract text from the uploaded file
     file_bytes = await strategy_file.read()
     try:
-        strategy_text = extract_text(file_bytes, filename)
+        redaction_plan_text = extract_text(file_bytes, filename)
     except Exception as exc:
         logger.error("Text extraction failed for '%s': %s", filename, exc)
-        raise HTTPException(
-            status_code=422,
-            detail=f"Could not extract text from the uploaded file: {exc}",
-        )
+        raise HTTPException(status_code=422, detail=f"Could not extract text from file: {exc}")
 
-    if not strategy_text.strip():
-        raise HTTPException(
-            status_code=422,
-            detail="The uploaded document appears to be empty or unreadable.",
-        )
+    if not redaction_plan_text.strip():
+        raise HTTPException(status_code=422, detail="The uploaded document is empty or unreadable.")
 
     try:
-        result = audit(
-            strategy_text=strategy_text,
-            analyst_output=parsed_analyst,
-            mode=mode,
-        )
+        result = audit(redaction_plan=redaction_plan_text, analyst_output=parsed_analyst)
         return JSONResponse(content={"status": "success", "data": result})
     except LLMError as exc:
         logger.error("LLM backends exhausted: %s", exc)
-        raise HTTPException(
-            status_code=502,
-            detail="All LLM backends failed. Please try again later.",
-        )
+        raise HTTPException(status_code=502, detail="All LLM backends failed. Please try again later.")
     except Exception as exc:
         logger.error("Upload audit failed: %s", exc)
         raise HTTPException(status_code=503, detail=f"Audit failed: {exc}")
+
+
+# ── History endpoints ──────────────────────────────────────────────────────────
+
+class HistoryRecord(BaseModel):
+    name: str
+    file: str
+    news_used: list[str] = []
+    improvements: int = 0
+
+
+@app.get("/history", summary="List all past audit records")
+def get_history():
+    """Return all saved audit records, most recent first."""
+    return JSONResponse(content={"status": "success", "data": get_all()})
+
+
+@app.post("/history", summary="Save an audit record")
+def post_history(body: HistoryRecord):
+    """Persist a completed audit to the history database."""
+    record = insert_record(
+        name=body.name,
+        file=body.file,
+        news_used=body.news_used,
+        improvements=body.improvements,
+    )
+    return JSONResponse(content={"status": "success", "data": record})
 
 
 # ── Health check ───────────────────────────────────────────────────────────────
 
 @app.get("/health", summary="Health check")
 def health():
-    return {"status": "ok", "agent": "Straton v1.2"}
+    return {"status": "ok", "agent": "COM Strategist v2.0"}

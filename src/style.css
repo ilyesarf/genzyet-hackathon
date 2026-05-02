@@ -1,4 +1,7 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Syne:wght@400..800&family=Noto+Sans+Arabic:wght@100..900&display=swap');
+
 :root {
+  /* Colors */
   --bg: #080808;
   --bg2: #111111;
   --bg3: #181818;
@@ -12,13 +15,28 @@
   --red: oklch(65% 0.2 25);
   --green: oklch(65% 0.15 145);
   --blue: oklch(65% 0.15 245);
+
+  /* Typography */
   --ff-head: 'Syne', sans-serif;
-  --ff-body: 'Inter', sans-serif;
-  --ff-mono: 'DM Mono', monospace;
+  --ff-body: 'DM Sans', sans-serif;
+  --ff-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
   --ff-arabic: 'Noto Sans Arabic', sans-serif;
 
+  /* Type Scale (at 18px root) */
+  --text-xs: 0.875rem;    /* 15.75px */
+  --text-sm: 1rem;        /* 18px */
+  --text-base: 1.125rem;  /* 20.25px */
+  --text-md: 1.25rem;     /* 22.5px */
+  --text-lg: 1.5rem;      /* 27px */
+  --text-xl: 2rem;        /* 36px */
+  --text-2xl: 2.75rem;    /* 49.5px */
+
+  --line-height-body: 1.7;
+  --letter-spacing-display: -0.02em;
+
   font-family: var(--ff-body);
-  line-height: 1.5;
+  font-size: 18px; /* ROOT BUMP to 18px */
+  line-height: var(--line-height-body);
   font-weight: 400;
   color-scheme: dark;
   color: var(--text);
@@ -39,11 +57,40 @@ html, body {
   height: 100%;
   width: 100%;
   overflow: hidden;
+  background-color: var(--bg);
 }
 
 #app {
   height: 100%;
   width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+/* Ambient Background */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 50%, #111 0%, #080808 100%);
+}
+
+.ambient-orb {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+  opacity: 0.03;
+  filter: blur(80px);
+  animation: float 20s ease-in-out infinite alternate;
+}
+
+@keyframes float {
+  from { transform: translate(-10%, -10%) rotate(0deg); }
+  to { transform: translate(10%, 10%) rotate(360deg); }
 }
 
 ::selection {
@@ -54,3 +101,16 @@ html, body {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* Motion Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: initial !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
