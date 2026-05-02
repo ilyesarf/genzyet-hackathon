@@ -6,7 +6,7 @@ from time import mktime
 import feedparser
 import requests
 from bs4 import BeautifulSoup
-from db import insert_article, prune_old_articles
+from db import insert_article, prune_old_articles, get_all_sources
 from facebook_scraper import scrape_facebook_page
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -61,12 +61,10 @@ def scrape_html(source):
 
 def run_scrape():
     logger.info("Starting scrape run...")
-    sources_file = os.path.join(os.path.dirname(__file__), 'sources.json')
     try:
-        with open(sources_file, 'r') as f:
-            sources = json.load(f)
+        sources = get_all_sources()
     except Exception as e:
-        logger.error(f"Could not load sources.json: {e}")
+        logger.error(f"Could not load sources from database: {e}")
         return
 
     for source in sources:

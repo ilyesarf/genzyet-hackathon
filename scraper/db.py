@@ -1,5 +1,6 @@
 import sqlite3
 import datetime
+import json
 import os
 
 DB_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -27,8 +28,86 @@ def init_db():
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_published_at ON articles(published_at)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_category ON articles(category)')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            type TEXT,
+            url TEXT,
+            category TEXT,
+            facebook_page_id TEXT,
+            enabled BOOLEAN DEFAULT 1
+        )
+    ''')
+    
+    cursor.execute('SELECT COUNT(*) FROM sources')
+    if cursor.fetchone()[0] == 0:
+        _seed_sources_from_json(cursor)
+        
     conn.commit()
     conn.close()
+
+def _seed_sources_from_json(cursor):
+    sources_file = os.path.join(os.path.dirname(__file__), 'sources.json')
+    if os.path.exists(sources_file):
+        try:
+            with open(sources_file, 'r') as f:
+                sources = json.load(f)
+            for source in sources:
+                cursor.execute('''
+                    INSERT INTO sources (name, type, url, category, facebook_page_id, enabled)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (
+                    source.get('name'),
+                    source.get('type'),
+                    source.get('url'),
+                    source.get('category'),
+                    source.get('facebook_page_id'),
+                    1 if source.get('enabled', True) else 0
+                ))
+        except Exception as e:
+            print(f"Error seeding sources: {e}")
+
+def get_all_sources():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM sources")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def add_source(name, stype, url, category, facebook_page_id=None, enabled=True):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO sources (name, type, url, category, facebook_page_id, enabled)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (name, stype, url, category, facebook_page_id, 1 if enabled else 0))
+        conn.commit()
+    except Exception as e:
+        print(f"Error inserting source: {e}")
+        raise
+    finally:
+        conn.close()
+
+def toggle_source(source_id, enabled):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE sources SET enabled = ? WHERE id = ?
+        ''', (1 if enabled else 0, source_id))
+        conn.commit()
+        if cursor.rowcount == 0:
+            return False
+        return True
+    except Exception as e:
+        print(f"Error toggling source: {e}")
+        raise
+    finally:
+        conn.close()
 
 def get_articles(window_hours=24, category=None):
     conn = get_db()

@@ -1,6 +1,7 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from typing import Optional
 import logging
 
@@ -56,18 +57,53 @@ def get_articles(window: int = Query(24, description="Time window in hours"),
         logger.error(f"Failed to get articles: {e}")
         raise HTTPException(status_code=500, detail="Internal server error while fetching articles")
 
-import os
-import json
+class SourceCreate(BaseModel):
+    name: str
+    type: str
+    url: str
+    category: str
+    facebook_page_id: Optional[str] = None
+    enabled: bool = True
+
+class SourceToggle(BaseModel):
+    enabled: bool
 
 @app.get("/sources", summary="Get configured sources")
 def get_sources():
-    sources_file = os.path.join(os.path.dirname(__file__), 'sources.json')
     try:
-        if os.path.exists(sources_file):
-            with open(sources_file, 'r') as f:
-                sources = json.load(f)
-            return {"status": "success", "data": sources}
-        return {"status": "success", "data": []}
+        sources = db.get_all_sources()
+        for s in sources:
+            s['enabled'] = bool(s['enabled'])
+        return {"status": "success", "data": sources}
     except Exception as e:
-        logger.error(f"Failed to read sources.json: {e}")
+        logger.error(f"Failed to fetch sources: {e}")
         raise HTTPException(status_code=500, detail="Internal server error while fetching sources")
+
+@app.post("/sources", summary="Add a new source")
+def add_source(source: SourceCreate):
+    try:
+        db.add_source(
+            name=source.name,
+            stype=source.type,
+            url=source.url,
+            category=source.category,
+            facebook_page_id=source.facebook_page_id,
+            enabled=source.enabled
+        )
+        return {"status": "success", "message": "Source added successfully."}
+    except Exception as e:
+        logger.error(f"Failed to add source: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error while adding source")
+
+@app.patch("/sources/{source_id}/toggle", summary="Toggle a source's enabled status")
+def toggle_source(source_id: int, toggle: SourceToggle):
+    try:
+        success = db.toggle_source(source_id, toggle.enabled)
+        if not success:
+            raise HTTPException(status_code=404, detail="Source not found")
+        return {"status": "success", "message": f"Source {'enabled' if toggle.enabled else 'disabled'} successfully."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to toggle source: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error while toggling source")

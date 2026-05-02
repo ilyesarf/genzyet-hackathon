@@ -122,18 +122,62 @@ onMounted(() => {
   fetchSources();
 });
 
-function toggleSource(id) {
-  // UI only for now — no backend endpoint to save config changes yet
-  sources.value = sources.value.map(s => s.id === id ? { ...s, active: !s.active } : s);
+async function toggleSource(id) {
+  const source = sources.value.find(s => s.id === id);
+  if (!source) return;
+  
+  const newActive = !source.active;
+  try {
+    const res = await fetch(`${SCRAPER_BASE}/sources/${id}/toggle`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: newActive })
+    });
+    
+    if (res.ok) {
+      sources.value = sources.value.map(s => s.id === id ? { ...s, active: newActive } : s);
+    } else {
+      console.error('Failed to toggle source');
+    }
+  } catch (err) {
+    console.error('Error toggling source:', err);
+  }
 }
+
 function removeSource(id) {
-  // UI only
+  // Not implemented on backend yet, so just hide from UI for now
   sources.value = sources.value.filter(s => s.id !== id);
 }
-function addSource() {
+
+async function addSource() {
   if (!newName.value || !newUrl.value) return;
-  sources.value = [...sources.value, { id: Date.now(), name: newName.value, type: 'web', active: true, category: 'tech', url: newUrl.value }];
-  newName.value = ''; newUrl.value = ''; adding.value = false;
+  
+  const newSource = {
+    name: newName.value,
+    type: 'html',
+    url: newUrl.value,
+    category: 'tech',
+    enabled: true
+  };
+  
+  try {
+    const res = await fetch(`${SCRAPER_BASE}/sources`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newSource)
+    });
+    
+    if (res.ok) {
+      await fetchSources();
+      newName.value = ''; 
+      newUrl.value = ''; 
+      adding.value = false;
+    } else {
+      console.error('Failed to add source');
+    }
+  } catch (err) {
+    console.error('Error adding source:', err);
+  }
 }
 </script>
 
